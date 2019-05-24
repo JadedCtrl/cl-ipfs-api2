@@ -1,6 +1,6 @@
-(defpackage :cl-ipfs-api²
+(defpackage :cl-ipfs-api2
   (:use :cl :arnesi)
-  (:nicknames :cl-ipfs :ipfs :cl-ipfs-api2)
+  (:nicknames :cl-ipfs :ipfs :cl-ipfs-api²)
   (:export
     *api-host*
     *api-root*
@@ -15,9 +15,15 @@
     :resolve
     :shutdown
 
+    ;; / block calls
+    :block/get
+    :block/put
+    :block/rm
+    :block/stat
+
     ;; / config calls
     :config
-    config/show
+    :config/show
 
     ;; /version calls
     :version

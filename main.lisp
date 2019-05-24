@@ -48,8 +48,8 @@
 			       "false")
 			      ((symbolp (second arg-pair))
 			       "true")
-			      ('T (second arg-pair))))))
-	      (setq first-arg nil))
+			      ('T (second arg-pair)))))
+		(setq first-arg nil)))
 	    arguments)
     call-url))
 
@@ -70,7 +70,7 @@
 
 
 ;; -------------------------------------
-;; / CALLS
+;; ROOT CALLS
 
 ;; PATHNAME → (HASH-STRING SIZE-NUMBER) || (NIL STRING)
 (defun add (pathname &key (pin 't) (only-hash nil))
@@ -156,7 +156,7 @@
 ;; STRING → (STRING || (NIL STRING)
 (defun dns (domain &key (recursive 't))
   "Resolve a domain into a path (usually /ipfs/).
-  http://127.0.0.1:8080/ipns/docs.ipfs.io/reference/api/http/#api-v0-dns"
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dns"
   (bind-api-result
     (ipfs-call "dns" `(("arg" ,domain) ("recursive" ,recursive)))
     (gethash "Path" result)))
@@ -183,12 +183,55 @@
 
 
 ;; -------------------------------------
-;; / CONFIG CALLS
+;; BLOCK CALLS
+
+;; STRING → STRING
+(defun block/get (hash)
+  "Get a raw IPFS block.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-get"
+  (bind-api-result
+    (ipfs-call "block/get" `(("arg" ,hash)))
+    result))
+
+;; PATHNAME [:STRING :STRING :NUMBER :BOOLEAN] → (STRING NUMBER)
+(defun block/put (pathname &key (format nil) (mhtype "sha2-256") (mhlen -1)
+		       (pin nil))
+  "Store input as an IPFS block.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-put"
+  (bind-api-result
+    (ipfs-call "block/put" `(,(if format (list "format" format))
+			     ("mhtype" ,mhtype)
+			     ("mhlen" ,mhlen)
+			     ("pin" ,pin))
+	       :method :POST :parameters `(("data" . ,pathname)))
+    (values (gethash "Key" result)
+	    (gethash "Size" result))))
+
+;; STRING → BOOLEAN
+(defun block/rm (hash &key (force nil))
+  "Delete an IPFS block(s).
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-rm"
+  (bind-api-result
+    (ipfs-call "block/rm" `(("arg" ,hash) ,(if force (list "force" force))))
+    't))
+
+;; STRING → (STRING NUMBER)
+(defun block/stat (hash)
+  "Print info about a raw IPFS block
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-stat"
+  (bind-api-result
+    (ipfs-call "block/stat" `(("arg" ,hash)))
+    (values (gethash "Key" result)
+	    (gethash "Size" result))))
+
+
+;; -------------------------------------
+;; CONFIG CALLS
 
 ;; STRING [:STRING :BOOLEAN :BOOLEAN] → STRING || (NIL STRING)
 (defun config (key &key (value nil) (bool nil) (json nil))
   "Get/set a config key's value.
-  http://127.0.0.1:8080/ipns/docs.ipfs.io/reference/api/http/#api-v0-config"
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-config"
   (bind-api-result
     (ipfs-call "config" `(("arg" ,key) ,(if value (list "value" value))
 				       ("bool" ,bool) ("json" ,json)))
@@ -205,7 +248,7 @@
 
 
 ;; -------------------------------------
-;; / VERSION CALLS
+;; VERSION CALLS
 
 ;; NIL → (STRING STRING STRING STRING STRING)
 (defun version ()
