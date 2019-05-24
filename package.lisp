@@ -1,9 +1,26 @@
-(defpackage :ipfs-gno
+(defpackage :cl-ipfs-api²
   (:use :cl :arnesi)
+  (:nicknames :cl-ipfs :ipfs :cl-ipfs-api2)
   (:export
     *api-host*
+    *api-root*
+
+    ;; / calls
     :dl
     :cat
-    :add))
+    :add
+    :dns
+    :id
+    :ls
+    :resolve
+    :shutdown
 
-(in-package :ipfs-gno)
+    ;; / config calls
+    :config
+    config/show
+
+    ;; /version calls
+    :version
+    :version/deps))
+
+(in-package :cl-ipfs-api²)
