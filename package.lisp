@@ -21,6 +21,14 @@
     :block/rm
     :block/stat
 
+    ;; / bootstrap calls
+    :bootstrap
+    :bootstrap/list
+    :bootstrap/add
+    :bootstrap/add/default
+    :bootstrap/rm
+    :bootstrap/rm/all
+
     ;; / config calls
     :config
     :config/show

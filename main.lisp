@@ -225,6 +225,58 @@
 	    (gethash "Size" result))))
 
 
+
+;; -------------------------------------
+;; BOOTSTRAP CALLS
+
+;; NIL → LIST
+(defun bootstrap ()
+  "Return a list of bootstrap peers
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap"
+  (bind-api-result
+    (ipfs-call "bootstrap" '())
+    (gethash "Peers" result)))
+
+;; NIL → LIST
+(defun bootstrap/list ()
+  "Return a list of bootstrap peers
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-list"
+  (bootstrap))
+
+;; STRING → LIST
+(defun bootstrap/add (peer)
+  "Add a peer to the bootstrap list
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add"
+  (bind-api-result
+    (ipfs-call "bootstrap/add" `(("arg" ,peer)))
+    (gethash "Peers" result)))
+
+;; NIL → LIST
+(defun bootstrap/add/default ()
+  "Add default peers to the bootstrap list
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add-default"
+  (bind-api-result
+    (ipfs-call "bootstrap/add/default" '())
+    (gethash "Peers" result)))
+
+;; STRING → LIST
+(defun bootstrap/rm (peer)
+  "Remove a peer from the bootstrap list
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
+  (bind-api-result
+    (ipfs-call "bootstrap/rm" `(("arg" ,peer)))
+    (gethash "Peers" result)))
+
+;; NIL → LIST
+(defun bootstrap/rm/all (peer)
+  "Remove a peer from the bootstrap list
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
+  (bind-api-result
+    (ipfs-call "bootstrap/rm/all" '())
+    (gethash "Peers" result)))
+
+
+
 ;; -------------------------------------
 ;; CONFIG CALLS
 
