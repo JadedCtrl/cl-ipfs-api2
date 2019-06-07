@@ -414,13 +414,13 @@
     (ipfs-call "dht/get" `(("arg" ,key)))
     (gethash "Addrs" (car (gethash "Responses"result)))))
 
-;; STRING [:BOOLEAN] → NIL || (NIL STRING)
+;; STRING [:BOOLEAN] → NIL
 (defun dht-provide (key &key (recursive nil))
   "Announce to the network that you're providing the given values.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-provide"
   (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive))))
 
-;; STRING STRING → NIL || (NIL STRING)
+;; STRING STRING → NIL
 (defun dht-put (key value)
   "Write a key-value pair to the routing system.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-put"
@@ -433,6 +433,35 @@
   (bind-api-result
     (ipfs-call "dht/query" `(("arg" ,key)))
     (re-hash-table-alist (gethash "Responses" result))))
+
+
+
+;; —————————————————————————————————————
+;; DIAG CALLS
+
+;; NIL → ALIST || (NIL STRING)
+(defun diag-cmds ()
+  "List commands run on this IPFS node.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds"
+  (mapcar #'re-hash-table-alist (ipfs-call "diag/cmds" '())))
+
+;; NIL → STRING
+(defun diag-cmds-clear ()
+  "Clear inactive requests from the log.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-clear"
+  (ipfs-call "diag/cmds/clear" '()))
+
+;; NUMBER → STRING
+(defun diag-cmds-set-time (time)
+  "Set how long to keep inactive requests in the log.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-set-time"
+  (ipfs-call "diag/cmds/set-time" `(("arg" ,time))))
+
+;; NIL → STRING
+(defun diag-sys ()
+  "Print system diagnostic info.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-sys"
+  (ipfs-call "diag/sys" '()))
 
 
 

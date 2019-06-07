@@ -56,6 +56,12 @@
     :dht-put
     :dht-query
 
+    ;; diag calls
+    :diag-cmds
+    :diag-cmds-clear
+    :diag-cmds-set-time
+    :diag-sys
+
     ;; version calls
     :version
     :version-deps))
