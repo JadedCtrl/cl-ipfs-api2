@@ -69,10 +69,10 @@
        ,form)))
 
 ;; FORM FORM → FORM
-(defmacro bind-api-alist (call form)
+(defmacro bind-api-alist (call)
   "Basically #'bind-api-result, but it assumes the final form is a hash-table,
    and maps it to an associative list."
-  `(bind-api-result ,call  (ignore-errors (re-hash-table-alist ,form))))
+  `(bind-api-result ,call  (ignore-errors (re-hash-table-alist result))))
 
 
 
@@ -137,8 +137,7 @@
   agent version, etc. If no node ID is specified, then your own is assumed.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-id"
   (bind-api-alist
-    (ipfs-call "id" `(,(if peer-id (list "arg" peer-id))))
-    result))
+    (ipfs-call "id" `(,(if peer-id (list "arg" peer-id))))))
 
 ;; ——————————————————
 
@@ -179,8 +178,7 @@
   "Show the current ledger for a peer.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-ledger"
   (bind-api-alist
-    (ipfs-call "bitswap/ledger" `(("arg" ,peer-id)))
-    result))
+    (ipfs-call "bitswap/ledger" `(("arg" ,peer-id)))))
 
 ;; NIL → NIL
 (defun bitswap-reprovide ()
@@ -193,16 +191,14 @@
   "Show diagnostic info on the bitswap agent.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-stat"
   (bind-api-alist
-    (ipfs-call "bitswap/stat" '())
-    result))
+    (ipfs-call "bitswap/stat" '())))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun bitswap-wantlist (&optional peer-id)
   "Show blocks currently on the wantlist.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-wantlist"
   (bind-api-alist
-    (ipfs-call "bitswap/wantlist" `(,(if peer-id (list "peer" peer-id))))
-    result))
+    (ipfs-call "bitswap/wantlist" `(,(if peer-id (list "peer" peer-id))))))
 
 
 
@@ -227,8 +223,7 @@
 			     ("mhtype" ,mhtype)
 			     ("mhlen" ,mhlen)
 			     ("pin" ,pin))
-	       :method :POST :parameters `(("data" . ,pathname)))
-    result))
+	       :method :POST :parameters `(("data" . ,pathname)))))
 
 ;; STRING → NIL
 (defun block-rm (hash &key (force nil))
@@ -243,8 +238,7 @@
   "Print info about a raw IPFS block
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-stat"
   (bind-api-alist
-    (ipfs-call "block/stat" `(("arg" ,hash)))
-    result))
+    (ipfs-call "block/stat" `(("arg" ,hash)))))
 
 
 
@@ -345,8 +339,7 @@
   Doesn't quite line up with #api-v0-config-show
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-config-show"
   (bind-api-alist
-    (ipfs-call "config/show" '())
-    result))
+    (ipfs-call "config/show" '())))
 
 ;; STRING → STRING || (NIL STRING)
 (defun config-get (key)
@@ -389,8 +382,57 @@
   "Resolve an IPLD block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-resolve"
   (bind-api-alist
-    (ipfs-call "dag/resolve" `(("arg" ,path)))
-    result))
+    (ipfs-call "dag/resolve" `(("arg" ,path)))))
+
+
+
+;; —————————————————————————————————————
+;; DHT CALLS
+
+;; STRING → LIST || (NIL STRING)
+(defun dht-findpeer (peer-id)
+  "Find the multiaddresses associated with a peer ID.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-findpeer"
+  (bind-api-result
+    (ipfs-call "dht/findpeer" `(("arg" ,peer-id)))
+    (gethash "Addrs" (car (gethash "Responses"result)))))
+
+;; STRING [:NUMBER] → LIST || (NIL STRING)
+(defun dht-findprovs (key &key (provider-quantity 20))
+  "Find peers that can provide a specific value, given a key.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-findprovs"
+  (bind-api-result
+    (ipfs-call "dht/findprovs"
+	       `(("arg" ,key)("num-providers" ,provider-quantity)))
+    (gethash "Addrs" (car (gethash "Responses"result)))))
+
+;; STRING → LIST || (NIL STRING)
+(defun dht-get (key)
+  "Query the routing system for a key's best value.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-get"
+  (bind-api-result
+    (ipfs-call "dht/get" `(("arg" ,key)))
+    (gethash "Addrs" (car (gethash "Responses"result)))))
+
+;; STRING [:BOOLEAN] → NIL || (NIL STRING)
+(defun dht-provide (key &key (recursive nil))
+  "Announce to the network that you're providing the given values.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-provide"
+  (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive))))
+
+;; STRING STRING → NIL || (NIL STRING)
+(defun dht-put (key value)
+  "Write a key-value pair to the routing system.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-put"
+  (ipfs-call "dht/put" `(("arg" ,key)("arg" ,value))))
+
+;; STRING → ALIST || (NIL STRING)
+(defun dht-query (peer-id)
+  "Find the closest peer IDs to the given one by querying the DHT.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-query"
+  (bind-api-result
+    (ipfs-call "dht/query" `(("arg" ,key)))
+    (re-hash-table-alist (gethash "Responses" result))))
 
 
 
@@ -410,8 +452,7 @@
   "Return info about dependencies used for build; I.E., Go version, OS, etc.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
   (bind-api-alist
-    (ipfs-call "version/deps" '())
-    result))
+    (ipfs-call "version/deps" '())))
 
 
 

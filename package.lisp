@@ -48,6 +48,14 @@
     :dag-put
     :dag-resolve
 
+    ;; dht calls
+    :dht-findpeer
+    :dht-findprovs
+    :dht-get
+    :dht-provide
+    :dht-put
+    :dht-query
+
     ;; version calls
     :version
     :version-deps))
