@@ -43,6 +43,11 @@
     :config
     :config-show
 
+    ;; dag calls
+    :dag-get
+    :dag-put
+    :dag-resolve
+
     ;; version calls
     :version
     :version-deps))

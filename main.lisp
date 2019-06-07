@@ -365,6 +365,36 @@
 
 
 ;; —————————————————————————————————————
+;; DAG CALLS
+
+;; STRING → STRING || (NIL STRING)
+(defun dag-get (dag-node)
+  "Get a dag node from IPFS.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-get"
+  (bind-api-result
+    (ipfs-call "dag/get" `(("arg" ,dag-node)))
+    result))
+
+;; STRING [:STRING :STRING :BOOLEAN] → STRING || (NIL STRING
+(defun dag-put (dag-node &key (format "cbor") (input-enc "json") (pin 'T))
+  "Add a dag node to IPFS. Returns CID string.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-put"
+  (bind-api-result
+    (ipfs-call "dag/put" `(("arg" ,dag-node) ("format" ,format)
+                           ("input-enc" ,input-enc) ("pin" ,pin)))
+    (gethash "/" (gethash "Cid" result))))
+
+;; STRING → ALIST || (NIL STRING)
+(defun dag-resolve (path)
+  "Resolve an IPLD block.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-resolve"
+  (bind-api-alist
+    (ipfs-call "dag/resolve" `(("arg" ,path)))
+    result))
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING
