@@ -6,9 +6,9 @@ CL-IPFS-API²                                      Binder for galactic transguys
 the HTTP API. It uses Dexador for HTTP(S) requests and YASON for JSON.
 
 
-----------------------------------------
+————————————————————————————————————————
 USAGE
-----------------------------------------
+————————————————————————————————————————
 Just use `quicklisp` (pop this in your "~/quicklisp/local-projects/",
 and you're good).
 
@@ -28,6 +28,7 @@ with a few notable exceptions:
 
 The calls implemented so far:
 	* root calls (cat, add, id, ls, resolve, etc)
+	* cid calls
 	* config calls (config, config/show)
 	* version calls (version, version/deps)
 
@@ -35,9 +36,9 @@ Functions return either strings, lists, or hash-tables (parsed JSON)--
 depending on context, of course. Read docstrings ♥
 
 
-----------------------------------------
+————————————————————————————————————————
 BORING STUFF
-----------------------------------------
+————————————————————————————————————————
 License is the GNU GPLv3:
        check COPYING.txt (/ipfs/QmTBpqbvJLZaq3hTMUhxX5hyJaSCeWe6Q5FRctQbsD6EsE)
 Author is Jaidyn Ann <jadedctrl@teknik.io>
