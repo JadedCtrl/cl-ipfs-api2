@@ -175,7 +175,7 @@
 ;; BITSWAP CALLS
 
 ;; STRING → ALIST || (NIL STRING)
-(defun bitswap/ledger (peer-id)
+(defun bitswap-ledger (peer-id)
   "Show the current ledger for a peer.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-ledger"
   (bind-api-alist
@@ -183,13 +183,13 @@
     result))
 
 ;; NIL → NIL
-(defun bitswap/reprovide ()
+(defun bitswap-reprovide ()
   "Trigger the reprovider.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-reprovide"
   (ipfs-call "bitswap/reprovide" '()))
 
 ;; NIL → ALIST || (NIL STRING)
-(defun bitswap/stat ()
+(defun bitswap-stat ()
   "Show diagnostic info on the bitswap agent.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-stat"
   (bind-api-alist
@@ -197,7 +197,7 @@
     result))
 
 ;; STRING → ALIST || (NIL STRING)
-(defun bitswap/wantlist (&optional peer-id)
+(defun bitswap-wantlist (&optional peer-id)
   "Show blocks currently on the wantlist.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-wantlist"
   (bind-api-alist
@@ -210,7 +210,7 @@
 ;; BLOCK CALLS
 
 ;; STRING → STRING || (NIL STRING)
-(defun block/get (hash)
+(defun block-get (hash)
   "Get a raw IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-get"
   (bind-api-result
@@ -218,7 +218,7 @@
     result))
 
 ;; PATHNAME [:STRING :STRING :NUMBER :BOOLEAN] → ALIST || (NIL STRING)
-(defun block/put (pathname &key (format nil) (mhtype "sha2-256") (mhlen -1)
+(defun block-put (pathname &key (format nil) (mhtype "sha2-256") (mhlen -1)
 		       (pin nil))
   "Store input as an IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-put"
@@ -231,7 +231,7 @@
     result))
 
 ;; STRING → NIL
-(defun block/rm (hash &key (force nil))
+(defun block-rm (hash &key (force nil))
   "Delete an IPFS block(s).
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-rm"
   (bind-api-result
@@ -239,7 +239,7 @@
     nil))
 
 ;; STRING → ALIST || (NIL STRING)
-(defun block/stat (hash)
+(defun block-stat (hash)
   "Print info about a raw IPFS block
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-stat"
   (bind-api-alist
@@ -260,13 +260,13 @@
     (gethash "Peers" result)))
 
 ;; NIL → LIST || (NIL STRING)
-(defun bootstrap/list ()
+(defun bootstrap-list ()
   "Return a list of bootstrap peers
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-list"
   (bootstrap))
 
 ;; STRING → LIST || (NIL STRING)
-(defun bootstrap/add (peer)
+(defun bootstrap-add (peer)
   "Add a peer to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add"
   (bind-api-result
@@ -274,7 +274,7 @@
     (gethash "Peers" result)))
 
 ;; NIL → LIST || (NIL STRING)
-(defun bootstrap/add/default ()
+(defun bootstrap-add-default ()
   "Add default peers to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add-default"
   (bind-api-result
@@ -282,7 +282,7 @@
     (gethash "Peers" result)))
 
 ;; STRING → LIST || (NIL STRING)
-(defun bootstrap/rm (peer)
+(defun bootstrap-rm (peer)
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
   (bind-api-result
@@ -290,7 +290,7 @@
     (gethash "Peers" result)))
 
 ;; NIL → LIST || (NIL STRING)
-(defun bootstrap/rm/all (peer)
+(defun bootstrap-rm-all (peer)
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
   (bind-api-result
@@ -303,7 +303,7 @@
 ;; CID CALLS
 
 ;; STRING → STRING || (NIL STRING)
-(defun cid/base32 (cid)
+(defun cid-base32 (cid)
   "Convert a CID into Base32 CIDv1
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-cid-base32"
   (bind-api-result
@@ -313,7 +313,7 @@
       (values nil (gethash "ErrorMsg" result)))))
 
 ;; NIL → ALIST || (NIL STRING)
-(defun cid/bases ()
+(defun cid-bases ()
   "Return a associative list of available bases in plist format; each base's
   name is a assigned a given code-number.
     ((CODE-A . NAME-A) (CODE-B . NAME-B) … (CODE-N . NAME-N))
@@ -339,7 +339,7 @@
     (gethash "Value" result)))
 
 ;; NIL → ALIST
-(defun config/show ()
+(defun config-show ()
   "Return the config file's contents, in alist-format… y'know, with several
   sub-alists.
   Doesn't quite line up with #api-v0-config-show
@@ -349,14 +349,14 @@
     result))
 
 ;; STRING → STRING || (NIL STRING)
-(defun config/get (key)
+(defun config-get (key)
   "Get a config key's value.
   Doesn't map with any existant API call; it's just a convenience wrapper
   around #'config."
   (config key))
 
 ;; STRING → STRING || (NIL STRING)
-(defun config/set (key value &key (bool nil) (json nil))
+(defun config-set (key value &key (bool nil) (json nil))
   "Set a config key's value.
   Doesn't map with any existant API call; it's just a convenience wrapper
   around #'config."
@@ -376,7 +376,7 @@
     (gethash "Version" result)))
 
 ;; NIL → ALIST
-(defun version/deps ()
+(defun version-deps ()
   "Return info about dependencies used for build; I.E., Go version, OS, etc.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
   (bind-api-alist
