@@ -603,6 +603,38 @@
 
 
 ;; —————————————————————————————————————
+;; KEY CALLS
+
+;; STRING [:STRING :NUMBER] → ALIST || (NIL STRING)
+(defun key-gen (name &key (type nil) (size nil))
+  "Create a new keypair.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-gen"
+  (bind-api-alist
+    (ipfs-call "key/gen" `(("name" ,name) ,(if type (list "type" type))
+					  ,(if size (list "size" size))))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun key-list ()
+  "List all local keypairs.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-list"
+  (bind-api-alist (ipfs-call "key/list" '())))
+
+;; STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
+(defun key-rename (old-name new-name &key (force nil))
+  "Rename a local keypair.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-rename"
+  (bind-api-alist
+    (ipfs-call "key/rename" `(("arg" ,old-name) ("arg" ,new-name)
+						("force" ,force)))))
+;; STRING → ALIST || (NIL STRING)
+(defun key-remove (name)
+  "Remove a keypair, based on name.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-remove"
+  (bind-api-alist (ipfs-call "key/remove" `(("arg" ,name)))))
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING

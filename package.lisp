@@ -81,6 +81,12 @@
     :filestore-dups
     :filestore-ls
     :filestore-verify
+    
+    ;; key calls
+    :key-gen
+    :key-list
+    :key-rename
+    :key-remove
 
     ;; version calls
     :version
