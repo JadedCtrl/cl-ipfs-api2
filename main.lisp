@@ -557,6 +557,49 @@
   (bind-api-alist
     (ipfs-call "files/stat" `(("arg" ,path)))))
 
+;; PATHNAME STRING [:NUMBER :BOOLEAN :BOOLEAN :BOOLEAN :NUMBER :BOOLEAN
+;;                  :NUMBER :STRING]
+;;                 → NIL || (NIL STRING)
+(defun files-write (pathname dest-path
+			     &key (offset nil) (create nil) (parents nil)
+			     (truncate nil) (count nil) (raw-leaves nil)
+			     (cid-version nil) (hash nil))
+  "Remove a given file.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
+  (bind-api-result
+    (ipfs-call "files/write" `(("arg" ,dest-path) ("create" ,create)
+			        ("parents" ,parents) ("truncate" ,truncate)
+				("raw-leaves" ,raw-leaves)
+			       ,(if offset (list "offset" offset))
+			       ,(if count (list "count" count))
+			       ,(if cid-version `("cid-version" ,cid-version))
+			       ,(if hash (list "hash" hash)))
+	       :method :post :parameters `(("file" . ,pathname)))
+    result))
+
+
+
+;; —————————————————————————————————————
+;; FILESTORE CALLS
+
+;; NIL → ALIST || (NIL STRING)
+(defun filestore-dups ()
+  "List blocks that're both in the filestore and standard block storage.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-dups"
+  (bind-api-alist (ipfs-call "filestore/dups")))
+
+;; [STRING] → ALIST || (NIL STRING)
+(defun filestore-ls (&optional cid)
+  "List objects in filestore.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-ls"
+  (bind-api-alist (ipfs-call "filestore/ls" `(,(if cid (list "arg" cid))))))
+
+;; [STRING] → ALIST || (NIL STRING)
+(defun filestore-verify (&optional cid)
+  "Verify objects in filestore.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-verify"
+  (bind-api-alist (ipfs-call "filestore/verify" `(,(if cid (list "arg" cid))))))
+
 
 
 ;; —————————————————————————————————————

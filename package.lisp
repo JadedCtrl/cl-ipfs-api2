@@ -75,6 +75,12 @@
     :files-read
     :files-rm
     :files-stat
+    :files-write
+
+    ;; filestore calls
+    :filestore-dups
+    :filestore-ls
+    :filestore-verify
 
     ;; version calls
     :version
