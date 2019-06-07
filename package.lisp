@@ -15,6 +15,12 @@
     :resolve
     :shutdown
 
+    ;; / bitswap calls
+    :bitswap/ledger
+    :bitswap/reprovide
+    :bitswap/stat
+    :bitswap/wantlist
+
     ;; / block calls
     :block/get
     :block/put

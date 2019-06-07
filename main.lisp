@@ -58,9 +58,8 @@
 
 ;; FORM FORM → FORM
 (defmacro bind-api-result (call form)
-  "Wrap around an #'ipfs-call form; if #'call returns an error, then
-  return NIL and the error message-- (NIL STRING)-- otherwise, execute
-  #'form.
+  "Wrap around an #'ipfs-call form; if #'call returns an error, then return NIL
+  and the error message-- (NIL STRING)-- otherwise, execute #'form.
   Binds the result of the API call to… you guessed it, the variable 'result'.
   The error message is assigned to 'message', if such a thing exists."
   `(multiple-value-bind (result message)
@@ -173,9 +172,44 @@
 
 
 ;; —————————————————————————————————————
+;; BITSWAP CALLS
+
+;; STRING → ALIST || (NIL STRING)
+(defun bitswap/ledger (peer-id)
+  "Show the current ledger for a peer.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-ledger"
+  (bind-api-alist
+    (ipfs-call "bitswap/ledger" `(("arg" ,peer-id)))
+    result))
+
+;; NIL → NIL
+(defun bitswap/reprovide ()
+  "Trigger the reprovider.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-reprovide"
+  (ipfs-call "bitswap/reprovide" '()))
+
+;; NIL → ALIST || (NIL STRING)
+(defun bitswap/stat ()
+  "Show diagnostic info on the bitswap agent.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-stat"
+  (bind-api-alist
+    (ipfs-call "bitswap/stat" '())
+    result))
+
+;; STRING → ALIST || (NIL STRING)
+(defun bitswap/wantlist (&optional peer-id)
+  "Show blocks currently on the wantlist.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-wantlist"
+  (bind-api-alist
+    (ipfs-call "bitswap/wantlist" `(,(if peer-id (list "peer" peer-id))))
+    result))
+
+
+
+;; —————————————————————————————————————
 ;; BLOCK CALLS
 
-;; STRING → STRING
+;; STRING → STRING || (NIL STRING)
 (defun block/get (hash)
   "Get a raw IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-get"
@@ -183,43 +217,41 @@
     (ipfs-call "block/get" `(("arg" ,hash)))
     result))
 
-;; PATHNAME [:STRING :STRING :NUMBER :BOOLEAN] → (STRING NUMBER)
+;; PATHNAME [:STRING :STRING :NUMBER :BOOLEAN] → ALIST || (NIL STRING)
 (defun block/put (pathname &key (format nil) (mhtype "sha2-256") (mhlen -1)
 		       (pin nil))
   "Store input as an IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-put"
-  (bind-api-result
+  (bind-api-alist
     (ipfs-call "block/put" `(,(if format (list "format" format))
 			     ("mhtype" ,mhtype)
 			     ("mhlen" ,mhlen)
 			     ("pin" ,pin))
 	       :method :POST :parameters `(("data" . ,pathname)))
-    (values (gethash "Key" result)
-	    (gethash "Size" result))))
+    result))
 
-;; STRING → BOOLEAN
+;; STRING → NIL
 (defun block/rm (hash &key (force nil))
   "Delete an IPFS block(s).
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-rm"
   (bind-api-result
     (ipfs-call "block/rm" `(("arg" ,hash) ,(if force (list "force" force))))
-    't))
+    nil))
 
-;; STRING → (STRING NUMBER)
+;; STRING → ALIST || (NIL STRING)
 (defun block/stat (hash)
   "Print info about a raw IPFS block
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-stat"
-  (bind-api-result
+  (bind-api-alist
     (ipfs-call "block/stat" `(("arg" ,hash)))
-    (values (gethash "Key" result)
-	    (gethash "Size" result))))
+    result))
 
 
 
 ;; —————————————————————————————————————
 ;; BOOTSTRAP CALLS
 
-;; NIL → LIST
+;; NIL → LIST || (NIL STRING)
 (defun bootstrap ()
   "Return a list of bootstrap peers
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap"
@@ -227,13 +259,13 @@
     (ipfs-call "bootstrap" '())
     (gethash "Peers" result)))
 
-;; NIL → LIST
+;; NIL → LIST || (NIL STRING)
 (defun bootstrap/list ()
   "Return a list of bootstrap peers
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-list"
   (bootstrap))
 
-;; STRING → LIST
+;; STRING → LIST || (NIL STRING)
 (defun bootstrap/add (peer)
   "Add a peer to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add"
@@ -241,7 +273,7 @@
     (ipfs-call "bootstrap/add" `(("arg" ,peer)))
     (gethash "Peers" result)))
 
-;; NIL → LIST
+;; NIL → LIST || (NIL STRING)
 (defun bootstrap/add/default ()
   "Add default peers to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add-default"
@@ -249,7 +281,7 @@
     (ipfs-call "bootstrap/add/default" '())
     (gethash "Peers" result)))
 
-;; STRING → LIST
+;; STRING → LIST || (NIL STRING)
 (defun bootstrap/rm (peer)
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
@@ -257,7 +289,7 @@
     (ipfs-call "bootstrap/rm" `(("arg" ,peer)))
     (gethash "Peers" result)))
 
-;; NIL → LIST
+;; NIL → LIST || (NIL STRING)
 (defun bootstrap/rm/all (peer)
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
