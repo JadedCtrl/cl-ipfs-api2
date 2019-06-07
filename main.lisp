@@ -418,13 +418,15 @@
 (defun dht-provide (key &key (recursive nil))
   "Announce to the network that you're providing the given values.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-provide"
-  (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive))))
+  (bind-api-result
+    (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive)))
+    result))
 
-;; STRING STRING → NIL
+;; STRING STRING → NIL || (NIL STRING)
 (defun dht-put (key value)
   "Write a key-value pair to the routing system.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-put"
-  (ipfs-call "dht/put" `(("arg" ,key)("arg" ,value))))
+  (bind-api-result (ipfs-call "dht/put" `(("arg" ,key)("arg" ,value))) result))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun dht-query (peer-id)
@@ -439,29 +441,121 @@
 ;; —————————————————————————————————————
 ;; DIAG CALLS
 
-;; NIL → ALIST || (NIL STRING)
+;; NIL → ALIST
 (defun diag-cmds ()
   "List commands run on this IPFS node.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds"
   (mapcar #'re-hash-table-alist (ipfs-call "diag/cmds" '())))
 
-;; NIL → STRING
+;; NIL → NIL || (NIL STRING)
 (defun diag-cmds-clear ()
   "Clear inactive requests from the log.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-clear"
-  (ipfs-call "diag/cmds/clear" '()))
+  (bind-api-result (ipfs-call "diag/cmds/clear" '()) result))
 
-;; NUMBER → STRING
+;; NUMBER → NIL || (NIL STRING)
 (defun diag-cmds-set-time (time)
   "Set how long to keep inactive requests in the log.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-set-time"
-  (ipfs-call "diag/cmds/set-time" `(("arg" ,time))))
+  (bind-api-result (ipfs-call "diag/cmds/set-time" `(("arg" ,time))) result))
 
-;; NIL → STRING
+;; NIL → STRING || (NIL STRING)
 (defun diag-sys ()
   "Print system diagnostic info.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-sys"
-  (ipfs-call "diag/sys" '()))
+  (bind-api-result (ipfs-call "diag/sys" '()) result))
+
+
+
+;; —————————————————————————————————————
+;; FILE CALLS
+
+(defun file-ls (path)
+  "List directory contents for UNIX filesystem objects.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-file-ls"
+  (bind-api-result
+    (ipfs-call "file/ls" `(("arg" ,path)))
+    (assoc "Objects" (re-hash-table-alist result) :test #'equal)))
+
+
+
+;; —————————————————————————————————————
+;; FILES CALLS
+
+;; STRING [:NUMBER :STRING] → NIL
+(defun files-chcid (path &key (cid-version nil) (hash nil))
+  "Change the cid version or hash function of the root node of a given path.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-chcid"
+  (bind-api-result
+    (ipfs-call "files/chcid" `(("arg" ,path)
+			       ,(if cid-version `("cid-version" ,cid-version))
+			       ,(if hash (list "hash" hash))))
+    result))
+
+;; STRING STRING → NIL || (NIL STRING)
+(defun files-cp (source destination)
+  "Copy files into mfs.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-cp"
+  (bind-api-result
+    (ipfs-call "files/cp" `(("arg" ,source)("arg" ,destination)))
+    result))
+
+;; STRING → STRING
+(defun files-flush (&optional (path "/"))
+  "Flush a given path's data to disk. Returns CID.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-flush"
+  (cadar (bind-api-alist (ipfs-call "files/flush" `(("arg" ,path))))))
+
+;; [STRING] → ALIST || (NIL STRING)
+(defun files-ls (&optional (path "/"))
+  "List directories in local mutable namespace.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-ls"
+  (bind-api-alist (ipfs-call "files/ls" `(("arg" ,path)))))
+
+;; STRING [:BOOLEAN :NUMBER :STRING] → NIL || (NIL STRING)
+(defun files-mkdir (path &key (parents nil) (cid-version nil) (hash nil))
+  "Make a directory.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-mkdir"
+  (bind-api-result
+    (ipfs-call "files/mkdir" `(("arg" ,path)
+			       ,(if parents (list "parents" parents))
+			       ,(if cid-version `("cid-version" ,cid-version))
+			       ,(if hash (list "hash" hash))))
+    result))
+
+;; STRING STRING → NIL || (NIL STRING)
+(defun files-mv (source destination)
+  "Move a file.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-mv"
+  (bind-api-result
+    (ipfs-call "files/mv" `(("arg" ,source)("arg" ,destination)))
+    result))
+
+;; STRING [:NUMBER :NUMBER] → STRING || (NIL STRING)
+(defun files-read (path &key (offset nil) (max nil))
+  "Read a file in given mfs.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-read"
+  (bind-api-result
+    (ipfs-call "files/read" `(("arg" ,source)
+			      ,(if offset (list "offset" offset))
+			      ,(if max (list "max" max))))
+    result))
+
+;; STRING [:BOOLEAN :BOOLEAN] → NIL || (NIL STRING)
+(defun files-rm (path &key (recursive nil) (force nil))
+  "Remove a given file.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
+  (bind-api-result
+    (ipfs-call "files/read" `(("arg" ,source) ("recursive" recursive)
+					      ("force" force)))
+    result))
+
+;; STRING → ALIST || (NIL STRING)
+(defun files-stat (path)
+  "Remove a given file.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
+  (bind-api-alist
+    (ipfs-call "files/stat" `(("arg" ,path)))))
 
 
 

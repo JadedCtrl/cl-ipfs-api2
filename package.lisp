@@ -62,6 +62,20 @@
     :diag-cmds-set-time
     :diag-sys
 
+    ;; file calls
+    :file-ls
+
+    ;; files calls
+    :files-chcid
+    :files-cp
+    :files-flush
+    :files-ls
+    :files-mkdir
+    :files-mv
+    :files-read
+    :files-rm
+    :files-stat
+
     ;; version calls
     :version
     :version-deps))
