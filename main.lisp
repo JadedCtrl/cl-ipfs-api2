@@ -3,6 +3,7 @@
 (defparameter *api-host* "http://127.0.0.1:5001")
 (defparameter *api-root* "/api/v0/")
 
+;; —————————————————————————————————————
 
 ;; STRING LIST [:LIST :BOOLEAN :SYMBOL] → STRING | HASHTABLE | (NIL STRING)
 (defun ipfs-call (call arguments &key (parameters nil) (want-stream nil)
@@ -24,7 +25,7 @@
 	  ((stringp result) result)
 	  ((vectorp result)
 	   (let ((json (yason:parse (flexi-streams:octets-to-string result))))
-	     (cond ((equal "error" (gethash "Type" json))
+	     (cond ((equal "error" (ignore-errors (gethash "Type" json)))
 		    (values nil (gethash "Message" json)))
 		   ('T json)))))))
 
@@ -67,22 +68,21 @@
        (values nil message)
        ,form)))
 
+(defmacro bind-api-alist (call form)
+  `(bind-api-result ,call  (re-hash-table-alist ,form)))
 
 
-;; -------------------------------------
+;; —————————————————————————————————————
 ;; ROOT CALLS
 
 ;; PATHNAME → (HASH-STRING SIZE-NUMBER) || (NIL STRING)
 (defun add (pathname &key (pin 't) (only-hash nil))
   "Add a file to IPFS, return it's hash.
-  http://127.0.0.1:8080/ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
   (bind-api-result
     (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash))
 	       :method :post :parameters `(("file" . ,pathname)))
-
-      (values (gethash "Hash" result)
-	      (parse-integer (gethash "Size" result))
-	      (gethash "Name" result))))
+    (re-hash-table-alist result)))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
 (defun cat (ipfs-path &key (offset nil) (length nil))
@@ -95,23 +95,15 @@
 		 ,(if length `("length" ,length))))
     result))
 
-;; STRING [:BOOLEAN :BOOLEAN] → (LIST LIST LIST LIST) || (NIL STRING)
+;; STRING [:BOOLEAN :BOOLEAN] → ALIST || (NIL STRING)
 (defun ls (ipfs-path &key (resolve-type 't) (size 't))
   "Returns all sub-objects (IPFS hashes) under a given IPFS/IPNS directory
-  path. Returns four lists; hashes, sizes, names, types. They are related
-  positionally-- aka, item #2 in the hash-list, will have a size of #2 in the
-  size-list, etc.
+  path. Returns as an associative list.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-ls"
   (bind-api-result
     (ipfs-call "ls" `(("arg" ,ipfs-path)
 		      ("resolve-type" ,resolve-type) ("size" ,size)))
-
-    (let ((links (gethash "Links"
-			  (car (gethash "Objects" result)))))
-      (values (mapcar (lambda (link) (gethash "Hash" link)) links)
-	      (mapcar (lambda (link) (gethash "Size" link)) links)
-	      (mapcar (lambda (link) (gethash "Name" link)) links)
-	      (mapcar (lambda (link) (gethash "Type" link)) links)))))
+    (cdr (caadar (re-hash-table-alist result)))))
 
 ;; STRING PATHNAME → NIL
 (defun dl (ipfs-path out-file)
@@ -133,25 +125,20 @@
 	      (write-byte it out-stream))
       (close in-stream))))
 
-;; -----------------
+;; ——————————————————
 
-;; [STRING] → (STRING LIST STRING STRING STRING)
-(defun id (&key (peer-id nil))
-  "Return info on a node by ID. Has multiple return-values, as follows:
-  public-key, address-list, agent-version, protocol-version, and peer ID.
-  The last might be redundant if it was specified as an argument; otherwise,
-  it tells you your own node's ID.
+;; [STRING] → ALIST
+(defun id (&optional peer-id)
+  "Return info on a node by ID. Returns as an associative list,
+  the public key, agent version, etc. If no node ID is specified,
+  then your own is assumed.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-id"
   (bind-api-result
     (ipfs-call "id" `(,(if peer-id (list "arg" peer-id))))
 
-    (values (gethash "PublicKey" result)
-	    (gethash "Addresses" result)
-	    (gethash "AgentVersion" result)
-	    (gethash "ProtocolVersion" result)
-	    (gethash "ID" result))))
+    (re-hash-table-alist result)))
 
-;; -----------------
+;; ——————————————————
 
 ;; STRING → (STRING || (NIL STRING)
 (defun dns (domain &key (recursive 't))
@@ -172,7 +159,7 @@
 			   ("dht-timeout" ,(string+ dht-timeout "s"))))
     (gethash "Path" result)))
 					      
-;; -----------------
+;; ——————————————————
 
 ;; NIL → NIL
 (defun shutdown ()
@@ -182,7 +169,7 @@
 
 
 
-;; -------------------------------------
+;; —————————————————————————————————————
 ;; BLOCK CALLS
 
 ;; STRING → STRING
@@ -226,7 +213,7 @@
 
 
 
-;; -------------------------------------
+;; —————————————————————————————————————
 ;; BOOTSTRAP CALLS
 
 ;; NIL → LIST
@@ -277,7 +264,34 @@
 
 
 
-;; -------------------------------------
+;; —————————————————————————————————————
+;; CID CALLS
+
+;; STRING → STRING || (NIL STRING)
+(defun cid/base32 (cid)
+  "Convert a CID into Base32 CIDv1
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-cid-base32"
+  (bind-api-result
+    (ipfs-call "cid/base32" `(("arg" ,cid)))
+    (if (zerop (length (gethash "ErrorMsg" result)))
+      (gethash "Formatted" result)
+      (values nil (gethash "ErrorMsg" result)))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun cid/bases ()
+  "Return a associative list of available bases in plist format;
+  each base's name is a assigned a given code-number.
+    ((CODE-A . NAME-A) (CODE-B . NAME-B) … (CODE-N . NAME-N))
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-cid-bases"
+  (bind-api-result
+    (ipfs-call "cid/bases" '())
+    (mapcan (lambda (base)
+	      `((,(gethash "Code" base) . ,(gethash "Name" base))))
+	    result)))
+
+
+
+;; —————————————————————————————————————
 ;; CONFIG CALLS
 
 ;; STRING [:STRING :BOOLEAN :BOOLEAN] → STRING || (NIL STRING)
@@ -287,51 +301,102 @@
   (bind-api-result
     (ipfs-call "config" `(("arg" ,key) ,(if value (list "value" value))
 				       ("bool" ,bool) ("json" ,json)))
-    `(,(gethash "Key" result) ,(gethash "Value" result))))
+    (cons (gethash "Key" result) (gethash "Value" result))))
 
-;; NIL → HASH-TABLE
+;; NIL → ALIST
 (defun config/show ()
-  "Return the config file's contents, in a Yason, JSON-parsed hashtable.
-  Doesn't quite line up with #api-v0-config-show"
-  (bind-api-result
+  "Return the config file's contents, in alist-format…
+  y'know, with several sub-alists.
+  Doesn't quite line up with #api-v0-config-show
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-config-show"
+  (bind-api-alist
     (ipfs-call "config/show" '())
     result))
 
+;; STRING → STRING || (NIL STRING)
+(defun config/get (key)
+  "Get a config key's value.
+  Doesn't map with any existant API call; it's just a 
+  convenience wrapper around #'config"
+  (config key))
+
+;; STRING → STRING || (NIL STRING)
+(defun config/set (key value &key (bool nil) (json nil))
+  "Set a config key's value.
+  Doesn't map with any existant API call; it's just a 
+  convenience wrapper around #'config"
+  (config key :value value :bool bool :json json))
 
 
-;; -------------------------------------
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
-;; NIL → (STRING STRING STRING STRING STRING)
+;; NIL → STRING
 (defun version ()
-  "Return versioning information on this IPFS node
+  "Return the current IPFS version.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
   (bind-api-result
     (ipfs-call "version" '())
-    (values (gethash "Version" result)
-	    (gethash "Commit" result)
-	    (gethash "Repo" result)
-	    (gethash "System" result)
-	    (gethash "Golang" result))))
+    (gethash "Version" result)))
 
-;; NIL → (STRING STRING STRING STRING)
+;; NIL → ALIST
 (defun version/deps ()
-  "Return info about dependencies used for build.
+  "Return info about dependencies used for build;
+  I.E., Go version, OS, etc.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
   (bind-api-result
     (ipfs-call "version/deps" '())
-    (values (gethash "Version" result)
-	    (gethash "Path" result)
-	    (gethash "ReplacedBy" result)
-	    (gethash "Sum" result))))
+    (re-hash-table-alist result)))
 
 
 
 
-;; -------------------------------------
+;; —————————————————————————————————————
 ;; UTIL
+
+;; FORM → BOOLEAN
+(defmacro error-p (form)
+  "Return whether or not a given form errors out."
+  `(multiple-value-bind (return error) (ignore-errors ,form)
+     (when error 'T)))
+
+;; VARYING → BOOLEAN
+(defun pure-cons-p (item)
+  "Return whether or not an item is 'purely' a cons-pair;
+  that is, it doesn't make up a larger list. In these cases,
+  #'consp passes, but #'length errors out."
+  (and (consp item)
+       (error-p (length item))))
+
+;; FUNCTION FUNCTION LIST/VARYING → LIST
+(defun test-apply (test function data)
+  "Apply a given function to all items within a list that
+  pass the given test, recursively. AKA, if the given function
+  returns another list, the process is applied to that list as
+  well. So on and so forth."
+  (cond ((pure-cons-p data)
+	 (test-apply test function
+		     `(,(car data) ,(cdr data))))
+	((listp data)
+	 (mapcar
+	   (lambda (item) (test-apply test function item))
+	   data))
+	((funcall test data)
+	 (test-apply test function
+		     (funcall function data)))
+	('T data)))
 
 ;; STRING-A STRING-B … STRING-N → STRING
 (defun string+ (&rest strings)
   "Combine an arbitrary amount of strings into a single string."
   (reduce (lambda (a b) (format nil "~A~A" a b)) strings))
+
+;; HASH-TABLE → ALIST
+(defun re-hash-table-alist (hash-table)
+  "Turn a hash-table into an associative list, recursively--
+  if any of the hash-table's values are ther hash-tables,
+  they too are turned into alists."
+  (test-apply #'hash-table-p
+	      #'alexandria:hash-table-alist
+	      (alexandria:hash-table-alist hash-table)))
