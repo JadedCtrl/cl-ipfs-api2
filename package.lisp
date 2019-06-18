@@ -119,6 +119,13 @@
     :p2p-stream-close
     :p2p-stream-ls
 
+    ;; pin calls
+    :pin-add
+    :pin-ls
+    :pin-rm
+    :pin-update
+    :pin-verify
+
     ;; pubsub calls
     :pubsub-sub
     :pubsub-sub-process

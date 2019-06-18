@@ -852,6 +852,47 @@
 
 
 ;; —————————————————————————————————————
+;; PIN CALLS
+
+;; STRING [:BOOLEAN] → ALIST || (NIL STRING)
+(defun pin-add (path &key (recursive 'T))
+  "Pin an object to local storage.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-add"
+  (bind-api-alist
+    (ipfs-call "pin/add" `(("arg" ,path)("recursive" ,recursive)))))
+
+;; [:STRING :STRING] → ALIST || (NIL STRING)
+(defun pin-ls (&key (path nil) (type "all"))
+  "List objects pinned to local storage.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-ls"
+  (bind-api-alist
+    (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type)))))
+
+;; STRING [:BOOLEAN] → ALIAS || (NIL STRING)
+(defun pin-rm (path &key (recursive 'T))
+  "Remove pinned objects from local storage.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-rm"
+  (bind-api-alist
+    (ipfs-call "pin/rm" `(("arg" ,path)("recursive" ,recursive)))))
+
+;; STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
+(defun pin-update (old-path new-path &key (unpin 'T))
+  "Update a recursive pin.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-update"
+  (bind-api-alist
+    (ipfs-call "pin/update"
+	       `(("arg" ,old-path)("arg" ,new-path)("unpin" ,unpin)))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun pin-verify ()
+  "Verify that recursive pins are complete.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-verify"
+  (bind-api-alist (ipfs-call "pin/verify" '())))
+
+
+
+
+;; —————————————————————————————————————
 ;; PUBSUB CALLS
 
 ;; STRING [:STRING] → PROCESS-INFO-STREAM
