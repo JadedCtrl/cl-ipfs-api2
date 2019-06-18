@@ -640,6 +640,32 @@
 
 
 ;; —————————————————————————————————————
+;; LOG CALLS
+
+;; STRING STRING → STRING || (NIL STRING)
+(defun log-level (subsystem level)
+  "Change the logging level of a subsystem.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-level"
+  (bind-api-result
+    (ipfs-call "log/level" `(("arg" ,subsystem)("arg" ,level)))
+    (gethash "Message" result)))
+
+;; NIL → LIST || (NIL STRING)
+(defun log-ls ()
+  "List the logging subsystems.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-ls"
+  (bind-api-result (ipfs-call "log/ls" '()) (gethash "Strings" result)))
+
+;; NIL → STRING || (NIL STRING)
+(defun log-tail ()
+  "Read the event log.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-tail"
+  (bind-api-result (ipfs-call "log/tail" '()) result))
+
+
+
+
+;; —————————————————————————————————————
 ;; PUBSUB CALLS
 
 ;; STRING [:STRING] → PROCESS-INFO-STREAM
@@ -688,8 +714,9 @@
   (uiop:run-program (string+ env "ipfs pubsub pub " topic " \"" string "\""))
   nil)
 
+;; —————————————————
 
-;; NIL → LIST
+;; NIL → LIST || (NIL STRING)
 (defun pubsub-ls ()
   "Return a list of subscribed topics.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-ls"
@@ -697,7 +724,7 @@
     (ipfs-call "pubsub/ls" '())
     (gethash "Strings" result)))
 
-;; [STRING] → LIST
+;; [STRING] → LIST || (NIL STRING)
 (defun pubsub-peers (&optional topic)
   "Return a list of peers with pubsub enabled.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-peers"

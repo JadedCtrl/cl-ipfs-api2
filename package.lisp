@@ -89,6 +89,11 @@
     :key-rename
     :key-remove
 
+    ;; log calls
+    :log-level
+    :log-ls
+    :log-tail
+
     ;; pubsub calls
     :pubsub-sub
     :pubsub-sub-process
