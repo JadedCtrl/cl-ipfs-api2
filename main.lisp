@@ -719,6 +719,68 @@
 
 
 ;; —————————————————————————————————————
+;; OBJECT CALLS
+
+;; STRING → STRING || (NIL STRING)
+(defun object-data (key)
+  "Output the raw data of an IPFS object.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-data"
+  (bind-api-result (ipfs-call "object/data" `(("arg" ,key))) result))
+
+;; STRING STRING → ALIST || (NIL STRING)
+(defun object-diff (object-a object-b)
+  "Display the differences between two IPFS objects.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-diff"
+  (bind-api-alist
+    (ipfs-call "object/diff" `(("arg" ,object-a)("arg" ,object-b)))))
+
+;; STRING [:STRING] → STRING || (NIL STRING)
+(defun object-get (key &key (data-encoding "text"))
+  "Get and serialize the named DAG node.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-get"
+  (bind-api-result
+    (ipfs-call "object/get" `(("arg" ,key)("data-encoding" ,data-encoding)))
+    result))
+
+;; STRING → ALIST || (NIL STRING)
+(defun object-links (key)
+  "Output the links pointed to by the specified object.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-links"
+  (bind-api-alist (ipfs-call "object/links" `(("arg" ,key)))))
+
+;; [:STRING] → ALIST || (NIL STRING)
+(defun object-new (&key (template nil))
+  "Create a new object from an IPFS template.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-new"
+  (bind-api-alist
+    (ipfs-call "object/new"`(,(if template `("template" ,template))))))
+
+;; STRING STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
+(defun object-patch-add-link (hash name object &key (create ""))
+  "Add a link to a given object.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-patch-add-link"
+  (bind-api-alist
+    (ipfs-call "object/patch/add-link"
+	       `(("arg" ,hash)("arg" ,name)("arg" ,object)
+		 ,(when (not (empty-string-p create)) `("create" ,create))))))
+
+;; STRING STRING → ALIST || (NIL STRING)
+(defun object-patch-rm-link (hash name)
+  "Remove a link from a given object.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-patch-rm-link"
+  (bind-api-alist
+    (ipfs-call "object/patch/rm-link" `(("arg" ,hash)("arg" ,name)))))
+
+;; STRING → ALIST || (NIL STRING)
+(defun object-stat (key)
+  "Get stats for a DAG node.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-stat"
+  (bind-api-alist (ipfs-call "object/stat" `(("arg" ,key)))))
+
+
+
+
+;; —————————————————————————————————————
 ;; PUBSUB CALLS
 
 ;; STRING [:STRING] → PROCESS-INFO-STREAM

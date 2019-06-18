@@ -101,6 +101,17 @@
     :name-pubsub-subs
     :name-resolve
 
+    ;; object calls
+    :object-data
+    :object-diff
+    :object-get
+    :object-links
+    :object-new
+    :object-patch-add-link
+    :object-patch-rm-link
+    :object-stat
+    ;; absentees— :object-put, :object-set-data, :object-patch-append-data
+
     ;; pubsub calls
     :pubsub-sub
     :pubsub-sub-process
