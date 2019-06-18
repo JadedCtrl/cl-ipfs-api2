@@ -666,6 +666,35 @@
 
 
 ;; —————————————————————————————————————
+;; NAME CALLS
+
+;; STRING [:BOOLEAN :STRING :BOOLEAN :STRING] → ALIST || (NIL STRING)
+(defun name-publish (ipfs-path &key (resolve 'T) (lifetime "24h")
+			       (allow-offline 'T) (ttl nil))
+  "Publish an IPNS name-- associate it with an IPFS path.
+   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-publish"
+  (bind-api-alist
+    (ipfs-call "name/publish" `(("arg" ,ipfs-path)("resolve" ,resolve)
+				("lifetime" ,lifetime)
+				("allow-offline" ,allow-offline)
+				,(if ttl (list "ttl" ttl))))))
+
+;; STRING → ALIST || (NIL STRING)
+(defun name-pubsub-cancel (name)
+  "Cancel subscription to a name.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-cancel"
+  (bind-api-alist (ipfs-call "name/pubsub/cancel" `(("arg" ,name)))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun name-pubsub-state ()
+  "Query the state of IPNS pubsub.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-state"
+  (bind-api-alist (ipfs-call "name/pubsub/state" '())))
+
+
+
+
+;; —————————————————————————————————————
 ;; PUBSUB CALLS
 
 ;; STRING [:STRING] → PROCESS-INFO-STREAM

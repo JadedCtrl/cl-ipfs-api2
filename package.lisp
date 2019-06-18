@@ -94,6 +94,11 @@
     :log-ls
     :log-tail
 
+    ;; name calls
+    :name-publish
+    :name-pubsub-cancel
+    :name-pubsub-state
+
     ;; pubsub calls
     :pubsub-sub
     :pubsub-sub-process
