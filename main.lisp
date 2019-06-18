@@ -905,6 +905,9 @@
   functions.
   A system-dependent replacement for
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-sub"
+  (when (and *ipfs-root* (empty-string-p env))
+    (setq env (string+ "env IPFS_PATH=" *ipfs-root* " > /dev/null;")))
+
   (uiop:launch-program (string+ env "ipfs pubsub sub " topic) :output :stream))
 
 ;; PROCESS-INFO-STREAM → FD-STREAM
