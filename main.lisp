@@ -679,17 +679,41 @@
 				("allow-offline" ,allow-offline)
 				,(if ttl (list "ttl" ttl))))))
 
-;; STRING → ALIST || (NIL STRING)
+;; STRING → STRING || (NIL STRING)
 (defun name-pubsub-cancel (name)
   "Cancel subscription to a name.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-cancel"
-  (bind-api-alist (ipfs-call "name/pubsub/cancel" `(("arg" ,name)))))
+  (bind-api-result (ipfs-call "name/pubsub/cancel" `(("arg" ,name)))
+		   (gethash "Canceled" result)))
 
-;; NIL → ALIST || (NIL STRING)
+;; NIL → STRING || (NIL STRING)
 (defun name-pubsub-state ()
   "Query the state of IPNS pubsub.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-state"
-  (bind-api-alist (ipfs-call "name/pubsub/state" '())))
+  (bind-api-result (ipfs-call "name/pubsub/state" '())
+		   (gethash "Enabled" result)))
+
+;; NIL → STRING || (NIL STRING)
+(defun name-pubsub-subs ()
+  "Show current name subscriptions.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-subs"
+  (bind-api-result (ipfs-call "name/pubsub/subs" '())
+		   (gethash "Strings" result)))
+
+;; STRING [:BOOLEAN :BOOLEAN :NUMBER :STRING] → STRING || (NIL STRING)
+(defun name-resolve (name &key (recursive 't) (nocache "")
+			  (dht-record-count nil) (dht-timeout nil))
+  "Resolve a given IPNS name.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-resolve"
+  (bind-api-result
+    (ipfs-call "name/resolve" `(("arg" ,name)("recursive" ,recursive)
+				,(when (not (empty-string-p nocache))
+				   (list "nocache" nocache))
+				,(when dht-record-count
+				   (list "dht-record-count" dht-record-count))
+				,(when dht-timeout
+				   (list "dht-timeout" dht-timeout))))
+    (gethash "Path" result)))
 
 
 

@@ -98,6 +98,8 @@
     :name-publish
     :name-pubsub-cancel
     :name-pubsub-state
+    :name-pubsub-subs
+    :name-resolve
 
     ;; pubsub calls
     :pubsub-sub
