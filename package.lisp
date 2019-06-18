@@ -4,6 +4,7 @@
   (:export
     *api-host*
     *api-root*
+    *ipfs-root*
 
     ;; calls
     :dl
@@ -87,6 +88,16 @@
     :key-list
     :key-rename
     :key-remove
+
+    ;; pubsub calls
+    :pubsub-sub
+    :pubsub-sub-process
+    :pubsub-sub-read-char
+    :pubsub-sub-listen
+    :pubsub-sub-close
+    :pubsub-pub
+    :pubsub-ls
+    :pubsub-peers
 
     ;; version calls
     :version

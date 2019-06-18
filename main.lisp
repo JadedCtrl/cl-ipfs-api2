@@ -2,6 +2,10 @@
 
 (defparameter *api-host* "http://127.0.0.1:5001")
 (defparameter *api-root* "/api/v0/")
+(defparameter *ipfs-root* nil) ;; correlates to the env variable $IPFS_PATH,
+                               ;; only necessary if yours deviates from the
+                               ;; default path. only used for #'pubsub-*
+
 
 ;; —————————————————————————————————————
 ;; BASE
@@ -19,6 +23,7 @@
 	  (drakma:http-request
 	    (make-call-url *api-host* *api-root* call arguments)
 	    :method method
+	    :url-encoder #'ipfs:url-encode
 	    :parameters parameters
 	    :want-stream want-stream)))
 
@@ -635,6 +640,75 @@
 
 
 ;; —————————————————————————————————————
+;; PUBSUB CALLS
+
+;; STRING [:STRING] → PROCESS-INFO-STREAM
+(defun pubsub-sub (topic &key (env ""))
+  "Subscribe to a given pubsub topic— this function requires go-ipfs to be
+  installed on the current machine, and that `ipfs` is in the current $PATH.
+  This probably will only work on *nix systems (sorry Windows nerds).
+  Returns a uiop/launch-program::process-info socket-- can be used in
+  conjunction with the #'pubsub-sub-* functions, or with :uiop/launch-program's
+  functions.
+  A system-dependent replacement for
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-sub"
+  (uiop:launch-program (string+ env "ipfs pubsub sub " topic) :output :stream))
+
+;; PROCESS-INFO-STREAM → FD-STREAM
+(defun pubsub-sub-process (pubsub-socket)
+  "Turn a uiop process-info-stream ('pubsub stream') into a fd-stream that
+  is #'read-char-able, etc."
+  (uiop/launch-program:process-info-output pubsub-socket))
+
+;; PROCESS-INFO-STREAM → CHARACTER
+(defun pubsub-sub-read-char (pubsub-socket)
+  "Process a 'pubsub stream' (process-info-stream) and #'readchar it."
+  (read-char (pubsub-sub-process pubsub-socket)))
+
+;; PROCESS-INFO-STREAM → BOOLEAN
+(defun pubsub-sub-listen (pubsub-socket)
+  "Process a 'pubsub stream' (process-info-stream) and #'listen it."
+  (listen (pubsub-sub-process pubsub-socket)))
+
+;; PROCESS-INFO-STREAM → NIL
+(defun pubsub-sub-close (pubsub-socket)
+  "Close a 'pubsub stream' (process-info-stream) and related processes."
+  (and (uiop/launch-program:terminate-process pubsub-socket :urgent 't)
+       (uiop/launch-program:close-streams pubsub-socket)))
+
+;; —————————————————
+
+;; STRING STRING [:STRING] → NIL
+(defun pubsub-pub (topic string &key (env ""))
+  "Publish a string to a given pubsub topic.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-pub"
+  (when (and *ipfs-root* (empty-string-p env))
+    (setq env (string+ "env IPFS_PATH=" *ipfs-root* " > /dev/null;")))
+
+  (uiop:run-program (string+ env "ipfs pubsub pub " topic " \"" string "\""))
+  nil)
+
+
+;; NIL → LIST
+(defun pubsub-ls ()
+  "Return a list of subscribed topics.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-ls"
+  (bind-api-result
+    (ipfs-call "pubsub/ls" '())
+    (gethash "Strings" result)))
+
+;; [STRING] → LIST
+(defun pubsub-peers (&optional topic)
+  "Return a list of peers with pubsub enabled.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-peers"
+  (bind-api-result
+    (ipfs-call "pubsub/peers" `(,(if topic (list "arg" topic))))
+    (gethash "Strings" result)))
+
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING
@@ -693,6 +767,11 @@
   "Combine an arbitrary amount of strings into a single string."
   (reduce (lambda (a b) (format nil "~A~A" a b)) strings))
 
+;; STRING → BOOLEAN
+(defun empty-string-p (string)
+  "Return whether or not a given item is an empty string."
+  (and (stringp string) (zerop (length string))))
+
 ;; HASH-TABLE → ALIST
 (defun re-hash-table-alist (hash-table)
   "Turn a hash-table into an associative list, recursively-- if any of the
@@ -700,3 +779,14 @@
   (test-apply #'hash-table-p
 	      #'alexandria:hash-table-alist
 	      (alexandria:hash-table-alist hash-table)))
+
+;; STRING → STRING
+(defun url-encode (string &rest ignored)
+  "Wrap around drakma's url encoder, with a slight change-- instead of using
+  plus-signs for spaces, we want to use %20."
+  ignored
+  (cl-ppcre:regex-replace-all
+    "%2520" (drakma:url-encode
+	      (cl-ppcre:regex-replace-all " " string "%20")
+	      :utf-8)
+    "%20"))
