@@ -781,6 +781,77 @@
 
 
 ;; —————————————————————————————————————
+;; P2P CALLS
+
+;; [:BOOLEAN :STRING :STRING :STRING :STRING] → NUMBER || (NIL STRING)
+(defun p2p-close (&key (all "") (protocol nil) (listen-address nil)
+		       (target-address nil))
+  "Stop listening for new connections to forward.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-close"
+  (bind-api-result
+    (ipfs-call "p2p/close" `(,(when (not (empty-string-p all)) `("all" ,all))
+			      ,(when protocol `("protocol" ,protocol))
+			      ,(when listen-address
+				 `("listen-address" ,listen-address))
+			      ,(when target-address
+				 `("target-address" ,target-address))))
+    result))
+
+;; STRING STRING STRING [:BOOLEAN] → STRING || (NIL STRING)
+(defun p2p-forward (protocol listening-endpoint target-endpoint
+			     &key (allow-custom-protocol ""))
+  "Forward connections to libp2p service.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-forward"
+  (bind-api-result
+    (ipfs-call "p2p/forward" `(("arg" ,protocol)("arg" ,listening-endpoint)
+			       ("arg" ,target-endpoint)
+			       ,(when
+				  (not (empty-string-p allow-custom-protocol))
+				  `("allow-custom-protocol"
+				    ,allow-custom-protocol))))
+    result))
+
+;; STRING STRING [:BOOLEAN :BOOLEAN] → STRING || (NIL STRING)
+(defun p2p-listen (protocol target-endpoint
+			    &key (allow-custom-protocol "") (report-peer-id ""))
+  "Create libp2p service.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-listen"
+  (bind-api-result
+    (ipfs-call "p2p/listen" `(("arg" ,protocol)("arg" ,target-endpoint)
+			       ,(when
+				  (not (empty-string-p allow-custom-protocol))
+				  `("allow-custom-protocol"
+				    ,allow-custom-protocol))
+			       ,(when (not (empty-string-p report-peer-id))
+				  `("report-peer-id" ,report-peer-id))))
+    result))
+
+;; NIL → ALIST || (NIL STRING)
+(defun p2p-ls ()
+  "List active p2p listeners.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-ls"
+  (bind-api-alist (ipfs-call "p2p/ls" '())))
+
+;; [:STRING :BOOLEAN] → STRING || (NIL STRING)
+(defun p2p-stream-close (&key (identifier nil) (all ""))
+  "Close an active p2p stream.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-stream-close"
+  (bind-api-result
+    (ipfs-call "p2p/stream/close" `(,(when identifier `("arg" ,identifier))
+				     ,(when (not (empty-string-p all))
+					`("all" ,all))))
+    result))
+
+;; NIL → ALIST || (NIL STRING)
+(defun p2p-stream-ls ()
+  "List active p2p streams.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-stream-ls"
+  (bind-api-alist (ipfs-call "p2p/stream/ls" '())))
+
+
+
+
+;; —————————————————————————————————————
 ;; PUBSUB CALLS
 
 ;; STRING [:STRING] → PROCESS-INFO-STREAM

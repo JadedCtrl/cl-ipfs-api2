@@ -112,6 +112,13 @@
     :object-stat
     ;; absentees— :object-put, :object-set-data, :object-patch-append-data
 
+    ;; p2p calls
+    :p2p-close
+    :p2p-listen
+    :p2p-ls
+    :p2p-stream-close
+    :p2p-stream-ls
+
     ;; pubsub calls
     :pubsub-sub
     :pubsub-sub-process
