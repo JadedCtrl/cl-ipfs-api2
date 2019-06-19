@@ -987,6 +987,71 @@
 
 
 ;; —————————————————————————————————————
+;; REPO CALLS
+
+;; NIL → STRING || (NIL STRING)
+(defun repo-fsck ()
+  "Remove repo lock-files.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-fsck"
+  (bind-api-result (ipfs-call "repo/fsck" '()) (gethash "Message" result)))
+
+;; NIL → ALIST || (NIL STRING)
+(defun repo-gc ()
+  "Perform garbage collection on the repo.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-gc"
+  (bind-api-alist (ipfs-call "repo/gc" '())))
+
+;; NIL → ALIST || (NIL STRING)
+(defun repo-stat ()
+  "Get stats for the current repo.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-stat"
+  (bind-api-alist (ipfs-call "repo/stat" '())))
+
+;; NIL → ALIST || (NIL STRING)
+(defun repo-verify ()
+  "Verify that all repo blocks aren't corrupted.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-verify"
+  (bind-api-alist (ipfs-call "repo/verify" '())))
+
+;; NIL → NUMBER || (NIL STRING)
+(defun repo-version ()
+  "Show the repo version.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-version"
+  (bind-api-result (ipfs-call "repo/version" '())
+		   (read-from-string (gethash "Version" result))))
+
+
+
+
+;; —————————————————————————————————————
+;; STATS CALLS
+
+;; NIL → ALIST || (NIL STRING)
+(defun stats-bitswap ()
+  "Show diagnostics on bitswap.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-bitswap"
+  (bind-api-alist (ipfs-call "stats/bitswap" '())))
+
+;; [:STRING :STRING :STRING] → ALIST || (NIL STRING)
+(defun stats-bw (&key (peer nil) (proto nil) (interval nil))
+  "Return bandwidth information.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-bw"
+  (bind-api-alist
+    (ipfs-call "stats/bitswap"
+	       `(,(when peer `("peer" ,peer)) ,(when proto `("proto" ,proto))
+                 ,(when interval `("interval" ,interval))
+		 ,(when interval `("poll" 'T))))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun stats-repo ()
+  "Show diagnostics on current repo.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-repo"
+  (bind-api-alist (ipfs-call "stats/repo" '())))
+
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING

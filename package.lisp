@@ -140,6 +140,18 @@
     :refs
     :refs-local
 
+    ;; repo calls
+    :repo-fsck
+    :repo-gc
+    :repo-stat
+    :repo-verify
+    :repo-version
+
+    ;; stats calls
+    :stats-bitswap
+    :stats-bw
+    :stats-repo
+
     ;; version calls
     :version
     :version-deps))
