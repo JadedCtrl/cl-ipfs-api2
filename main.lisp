@@ -966,6 +966,27 @@
 
 
 ;; —————————————————————————————————————
+;; REFS CALLS
+
+;; STRING [:BOOLEAN :BOOLEAN :NUMBER] → ALIST || (NIL STRING)
+(defun refs (path &key (unique "") (recursive "") (max-depth -1))
+  "List links (references) from an object.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-refs"
+  (bind-api-alist
+    (ipfs-call "refs" `(("arg" ,path)("max-depth" ,max-depth)
+			,(if (not (empty-string-p recursive))
+			   `("recursive" ,recursive))))))
+
+;; NIL → ALIST || (NIL STRING)
+(defun refs-local ()
+  "List all local references.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-refs-local"
+  (bind-api-alist (ipfs-call "refs/local" '())))
+
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING

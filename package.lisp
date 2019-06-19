@@ -136,6 +136,10 @@
     :pubsub-ls
     :pubsub-peers
 
+    ;; refs calls
+    :refs
+    :refs-local
+
     ;; version calls
     :version
     :version-deps))
