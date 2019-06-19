@@ -1121,6 +1121,21 @@
 
 
 ;; —————————————————————————————————————
+;; URLSTORE CALLS
+
+;; STRING [:BOOLEAN :BOOLEAN] → ALIST || (NIL STRING)
+(defun urlstore-add (url &key (pin 'T) (trickle ""))
+  "Add a URL via urlstore.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-urlstore-add"
+  (bind-api-alist
+    (ipfs-call "urlstore/add" `(("arg" ,url)("pin" ,pin)
+				,(when (not (empty-string-p trickle))
+				   `("trickle" ,trickle))))))
+
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING

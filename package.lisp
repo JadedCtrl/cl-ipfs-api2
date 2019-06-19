@@ -163,6 +163,9 @@
     :swarm-filters-rm
     :swarm-peers
 
+    ;; urlstore calls
+    :urlstore-add
+
     ;; version calls
     :version
     :version-deps))
