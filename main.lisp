@@ -1052,6 +1052,75 @@
 
 
 ;; —————————————————————————————————————
+;; SWARM CALLS
+
+;; NIL → ALIST || (NIL STRING)
+(defun swarm-addrs ()
+  "List known addresses.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs"
+  (bind-api-result (ipfs-call "swarm/addrs" '())
+		   (re-hash-table-alist (gethash "Addrs" result))))
+
+;; NIL → LIST || (NIL STRING)
+(defun swarm-addrs-listen ()
+  "List interface listening addresses.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs-listen"
+  (bind-api-result (ipfs-call "swarm/addrs/listen" '())
+		   (gethash "Strings" result)))
+
+;; NIL → LIST || (NIL STRING)
+(defun swarm-addrs-local ()
+  "List local addresses.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs-local"
+  (bind-api-result (ipfs-call "swarm/addrs/local" '())
+		   (gethash "Strings" result)))
+
+;; STRING → LIST || (NIL STRING)
+(defun swarm-connect (address)
+  "Open connection to a given address.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-connect"
+  (bind-api-result (ipfs-call "swarm/connect" `(("arg" ,address)))
+		   (gethash "Strings" result)))
+
+;; STRING → LIST || (NIL STRING)
+(defun swarm-disconnect (address)
+  "Close connection to a given address.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-disconnect"
+  (bind-api-result (ipfs-call "swarm/disconnect" `(("arg" ,address)))
+		   (gethash "Strings" result)))
+
+
+;; NIL → LIST || (NIL STRING)
+(defun swarm-filters ()
+  "List address filters.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters"
+  (bind-api-result (ipfs-call "swarm/filters" '()) (gethash "Strings" result)))
+
+;; STRING → LIST || (NIL STRING)
+(defun swarm-filters-add (multiaddr)
+  "Add an address filter.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters-add"
+  (bind-api-result (ipfs-call "swarm/filters/add" `(("arg" ,multiaddr)))
+		   (gethash "Strings" result)))
+
+;; STRING → LIST || (NIL STRING)
+(defun swarm-filters-rm (multiaddr)
+  "Remove an address filter.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters-rm"
+  (bind-api-result (ipfs-call "swarm/filters/rm" `(("arg" ,multiaddr)))
+		   (gethash "Strings" result)))
+
+;; NIL → ALIST || (NIL STRING)
+(defun swarm-peers ()
+  "List peers with open connections.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-peers"
+  (bind-api-result (ipfs-call "swarm/peers" '())
+		   (mapcar #'re-hash-table-alist (gethash "Peers" result))))
+
+
+
+
+;; —————————————————————————————————————
 ;; VERSION CALLS
 
 ;; NIL → STRING

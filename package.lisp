@@ -152,6 +152,17 @@
     :stats-bw
     :stats-repo
 
+    ;; swarm calls
+    :swarm-addrs
+    :swarm-addrs-listen
+    :swarm-addrs-local
+    :swarm-connect
+    :swarm-disconnect
+    :swarm-filters
+    :swarm-filters-add
+    :swarm-filters-rm
+    :swarm-peers
+
     ;; version calls
     :version
     :version-deps))
