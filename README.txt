@@ -49,11 +49,26 @@ context. All errors return two values— nil and an error message (string).
 Make sure to read docstrings for specific information, and keeping the API
 reference handy is a good idea (/ipns/docs.ipfs.io/reference/api/http/).
 
+————————————————————
+USEFUL VARIABLES
+————————————————————
+There are three exported variables:
+	ipfs:*api-host*    →   "http://127.0.0.1:5001"
+	ipfs:*api-root*    →   "/api/v0/"
+	ipfs:*ipfs-root*   →   NIL
 
+*api-host* is the protocol, host, and port of the API server— unless you're
+using a custom port or remote server, this probably won't need to change.
+*api-root* is the URL root of all API calls on the server— only changes under
+very strange circumstances.
+*ipfs-root* is the “root” of the local IPFS daemon. This is only used with
+the pubsub commands, since they actually invoke the local `ipfs` program.
+You only need to change this variable if your $IPFS_PATH is irregular, like
+"/var/ipfs/" or something weird like that.
 
-————————————————————————————————————————
+————————————————————
 PUBSUB USAGE
-————————————————————————————————————————
+————————————————————
 Pubsub usage here is such an abberation that it warrants its own section.
 Since there isn't a (functional) HTTP API for pubsub yet, we're using the
 actual go-ipfs program from your computer.
@@ -62,8 +77,6 @@ If you don't have go-ipfs locally installed, it won't work.
 If you are using Windows, or anything but *nix, it probably won't work.
 If you haven't enabled pubsub (--enable-pubsub-experiment argument to daemon),
 it won't work.
-
-Well… here we go.
 
 You can sub to a topic with, ofc, #'pubsub-sub, which will return a
 UIOP-originated process-info stream— while the `ipfs pubsub sub` command runs

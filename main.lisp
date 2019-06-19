@@ -1,3 +1,12 @@
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of version 3 of the GNU General Public License
+;; as published by the Free Software Foundation.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 (in-package :cl-ipfs-api2)
 
 (defparameter *api-host* "http://127.0.0.1:5001")
@@ -23,7 +32,7 @@
 	  (drakma:http-request
 	    (make-call-url *api-host* *api-root* call arguments)
 	    :method method
-	    :url-encoder #'ipfs:url-encode
+	    :url-encoder #'ipfs::url-encode
 	    :parameters parameters
 	    :want-stream want-stream)))
 
