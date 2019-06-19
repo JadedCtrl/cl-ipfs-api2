@@ -1,5 +1,5 @@
 ===============================================================================
-CL-IPFS-API²                                   For space-orientied lisp weenies
+CL-IPFS-API²                                                                   
 ===============================================================================
 
 :cl-ipfs-api² is a pretty simple set of IPFS bindings for Common Lisp, using
@@ -35,14 +35,20 @@ The calls implemented so far:
 	* file, files, filestore
 	* key, name, object
 	* p2p, pin, pubsub
+	* refs, repo, stats
+	* swarm, urlstore
 	* version (version, version/deps)
 
 Some calls were skipped over, but wouldn't be hard to add:
 	* object/put, object/set-data object/patch/append-data
+	* tar calls were deliberately ignored (useless)
 
 Functions return either strings, lists, or associative lists, depending on
 context. All errors return two values— nil and an error message (string).
-Make sure to read docstrings ☆
+
+Make sure to read docstrings for specific information, and keeping the API
+reference handy is a good idea (/ipns/docs.ipfs.io/reference/api/http/).
+
 
 
 ————————————————————————————————————————
