@@ -243,9 +243,8 @@
 (defun block-rm (hash &key (force nil))
   "Delete an IPFS block(s).
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-rm"
-  (bind-api-result
-    (ipfs-call "block/rm" `(("arg" ,hash) ,(if force (list "force" force))))
-    nil))
+  (ipfs-call "block/rm" `(("arg" ,hash) ,(if force (list "force" force))))
+  nil)
 
 ;; STRING → ALIST || (NIL STRING)
 (defun block-stat (hash)
@@ -298,7 +297,7 @@
     (gethash "Peers" result)))
 
 ;; NIL → LIST || (NIL STRING)
-(defun bootstrap-rm-all (peer)
+(defun bootstrap-rm-all ()
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
   (bind-api-result
@@ -447,7 +446,7 @@
   "Find the closest peer IDs to the given one by querying the DHT.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-query"
   (bind-api-result
-    (ipfs-call "dht/query" `(("arg" ,key)))
+    (ipfs-call "dht/query" `(("arg" ,peer-id)))
     (re-hash-table-alist (gethash "Responses" result))))
 
 
@@ -550,7 +549,7 @@
   "Read a file in given mfs.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-read"
   (bind-api-result
-    (ipfs-call "files/read" `(("arg" ,source)
+    (ipfs-call "files/read" `(("arg" ,path)
 			      ,(if offset (list "offset" offset))
 			      ,(if max (list "max" max))))
     result))
@@ -560,8 +559,8 @@
   "Remove a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
   (bind-api-result
-    (ipfs-call "files/read" `(("arg" ,source) ("recursive" recursive)
-					      ("force" force)))
+    (ipfs-call "files/read" `(("arg" ,source) ("recursive" ,recursive)
+					      ("force" ,force)))
     result))
 
 ;; STRING → ALIST || (NIL STRING)
@@ -600,7 +599,7 @@
 (defun filestore-dups ()
   "List blocks that're both in the filestore and standard block storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-dups"
-  (bind-api-alist (ipfs-call "filestore/dups")))
+  (bind-api-alist (ipfs-call "filestore/dups" '())))
 
 ;; [STRING] → ALIST || (NIL STRING)
 (defun filestore-ls (&optional cid)
@@ -984,7 +983,9 @@
   (bind-api-alist
     (ipfs-call "refs" `(("arg" ,path)("max-depth" ,max-depth)
 			,(if (not (empty-string-p recursive))
-			   `("recursive" ,recursive))))))
+			   `("recursive" ,recursive))
+			,(if (not (empty-string-p unique))
+			   `("unique" ,unique))))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun refs-local ()
@@ -1172,6 +1173,7 @@
 (defmacro error-p (form)
   "Return whether or not a given form errors out."
   `(multiple-value-bind (return error) (ignore-errors ,form)
+     return
      (when error 'T)))
 
 ;; VARYING → BOOLEAN
