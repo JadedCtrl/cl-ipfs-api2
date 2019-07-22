@@ -11,8 +11,8 @@ It uses Dexador, YASON, and UIOP.
 ————————————————————————————————————————
 USAGE
 ————————————————————————————————————————
-Just use `quicklisp` (pop this in your "~/quicklisp/local-projects/",
-and you're good).
+:cl-ipfs-api² is available on Quicklisp, so just run:
+        > (ql:quickload :cl-ipfs-api2)
 
 Then you can do things like:
 	> (ipfs:add #p"~/.bashrc")
