@@ -1,5 +1,5 @@
 (defsystem "cl-ipfs-api2"
-	   :version "0.5"
+	   :version "0.51"
            :license "GPLv3"
 	   :author "Jaidyn Ann <jadedctrl@teknik.io>"
 	   :description "Bindings for the IPFS HTTP API."

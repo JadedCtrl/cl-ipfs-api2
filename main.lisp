@@ -21,7 +21,7 @@
 
 ;; STRING LIST [:LIST :BOOLEAN :SYMBOL] → STRING | HASHTABLE | (NIL STRING)
 (defun ipfs-call (call arguments &key (parameters nil) (want-stream nil)
-			   (method :GET))
+			   (method :POST))
   "Make an IPFS HTTP API call. Quite commonly used.
    Some calls return strings/raw data, and others return JSON.
    When strings/arbitrary data are recieved, they're returned verbatim.
@@ -99,7 +99,7 @@
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
   (bind-api-result
     (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash))
-	       :method :post :parameters `(("file" . ,pathname)))
+	       :parameters `(("file" . ,pathname)))
     result))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
@@ -237,7 +237,7 @@
 			     ("mhtype" ,mhtype)
 			     ("mhlen" ,mhlen)
 			     ("pin" ,pin))
-	       :method :POST :parameters `(("data" . ,pathname)))))
+	       :parameters `(("data" . ,pathname)))))
 
 ;; STRING → NIL
 (defun block-rm (hash &key (force nil))
@@ -587,7 +587,7 @@
 			       ,(if count (list "count" count))
 			       ,(if cid-version `("cid-version" ,cid-version))
 			       ,(if hash (list "hash" hash)))
-	       :method :post :parameters `(("file" . ,pathname)))
+	       :parameters `(("file" . ,pathname)))
     result))
 
 
