@@ -16,12 +16,13 @@
                                ;; default path. only used for #'pubsub-*
 
 
+
 ;; —————————————————————————————————————
 ;; BASE
 
-;; STRING LIST [:LIST :BOOLEAN :SYMBOL] → STRING | HASHTABLE | (NIL STRING)
+;; STRING LIST [:LIST :BOOLEAN :SYMBOL] → STRING | ALIST | (NIL STRING)
 (defun ipfs-call (call arguments &key (parameters nil) (want-stream nil)
-			   (method :POST))
+                        (method :POST))
   "Make an IPFS HTTP API call. Quite commonly used.
    Some calls return strings/raw data, and others return JSON.
    When strings/arbitrary data are recieved, they're returned verbatim.
@@ -29,21 +30,24 @@
    If the JSON is 'error JSON', I.E., it signals that an error has been
    recieved, two values are returned: NIL and the string-error-message."
   (let ((result
-	  (drakma:http-request
-	    (make-call-url *api-host* *api-root* call arguments)
-	    :method method
-	    :url-encoder #'ipfs::url-encode
-	    :parameters parameters
-	    :want-stream want-stream)))
+          (drakma:http-request
+            (make-call-url *api-host* *api-root* call arguments)
+            :method method
+            :url-encoder #'ipfs::url-encode
+            :parameters parameters
+            :want-stream want-stream)))
 
     (cond (want-stream result)
-	  ((stringp result) result)
-	  ((vectorp result)
-	   (let ((json (yason:parse (flexi-streams:octets-to-string result))))
-	     (cond ((equal "error" (ignore-errors (gethash "Type" json)))
-		    (values nil (gethash "Message" json)))
-		   ('T json)))))))
-
+          ((stringp result) (values nil result))
+          ((vectorp result)
+           (let* ((string (flexi-streams:octets-to-string result))
+                  (alist
+                    (with-input-from-string (stream string)
+                      (loop while (peek-char t stream nil)
+                            collect (yason:parse stream :object-as :alist)))))
+             (if (ignore-errors (equal (cdr (s-assoc "Type" (simplify alist))) "error"))
+               (values NIL (cdr (s-assoc "Message" (simplify alist))))
+               (simplify alist)))))))
 
 ;; STRING STRING LIST → STRING
 (defun make-call-url (host root call arguments)
@@ -53,41 +57,21 @@
     (('recursive' nil)('name' 'xabbu'))"
   (let ((call-url (string+ host root call))
 	(first-arg 'T))
-    (mapcar (lambda (arg-pair)
-	      (when arg-pair
-		(setq call-url
-		      (string+
-			call-url
-			(if first-arg "?" "&")
-			(first arg-pair) "="
-			(cond ((not (second arg-pair))
-			       "false")
-			      ((symbolp (second arg-pair))
-			       "true")
-			      ('T (second arg-pair)))))
-		(setq first-arg nil)))
-	    arguments)
+    (mapcar
+      (lambda (arg-pair)
+        (when arg-pair
+          (setq call-url
+            (string+ call-url
+              (if first-arg "?" "&")
+              (first arg-pair) "="
+              (cond ((not (second arg-pair))
+                     "false")
+                    ((symbolp (second arg-pair))
+                     "true")
+                    ('T (second arg-pair)))))
+          (setq first-arg nil)))
+      arguments)
     call-url))
-
-
-;; FORM FORM → FORM
-(defmacro bind-api-result (call form)
-  "Wrap around an #'ipfs-call form; if #'call returns an error, then return NIL
-  and the error message-- (NIL STRING)-- otherwise, execute #'form.
-  Binds the result of the API call to… you guessed it, the variable 'result'.
-  The error message is assigned to 'message', if such a thing exists."
-  `(multiple-value-bind (result message)
-     ,call
-     (if message
-       (values nil message)
-       ,form)))
-
-;; FORM FORM → FORM
-(defmacro bind-api-alist (call)
-  "Basically #'bind-api-result, but it assumes the final form is a hash-table,
-   and maps it to an associative list."
-  `(bind-api-result ,call  (ignore-errors (re-hash-table-alist result))))
-
 
 
 ;; —————————————————————————————————————
@@ -97,31 +81,25 @@
 (defun add (pathname &key (pin 't) (only-hash nil))
   "Add a file to IPFS, return it's hash.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
-  (bind-api-result
-    (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash))
-	       :parameters `(("file" . ,pathname)))
-    result))
+  (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash))
+             :parameters `(("file" . ,pathname))))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
 (defun cat (ipfs-path &key (offset nil) (length nil))
   "Return a string of the data at the given IPFS path.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-cat"
-  (bind-api-result
-    (ipfs-call "cat"
-	       `(("arg" ,ipfs-path)
-		 ,(if offset `("offset" ,offset))
-		 ,(if length `("length" ,length))))
-    result))
+  (ipfs-call "cat"
+             `(("arg" ,ipfs-path)
+               ,(if offset `("offset" ,offset))
+               ,(if length `("length" ,length)))))
 
 ;; STRING [:BOOLEAN :BOOLEAN] → ALIST || (NIL STRING)
 (defun ls (ipfs-path &key (resolve-type 't) (size 't))
   "Returns all sub-objects (IPFS hashes) under a given IPFS/IPNS directory
   path. Returns as an associative list.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-ls"
-  (bind-api-result
-    (ipfs-call "ls" `(("arg" ,ipfs-path)
-		      ("resolve-type" ,resolve-type) ("size" ,size)))
-    (cdr (caadar (re-hash-table-alist result)))))
+  (ipfs-call "ls" `(("arg" ,ipfs-path)
+                    ("resolve-type" ,resolve-type) ("size" ,size))))
 
 ;; STRING PATHNAME → NIL
 (defun dl (ipfs-path out-file)
@@ -150,30 +128,25 @@
   "Return info on a node by ID. Returns as an associative list, the public key,
   agent version, etc. If no node ID is specified, then your own is assumed.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-id"
-  (bind-api-alist
-    (ipfs-call "id" `(,(if peer-id (list "arg" peer-id))))))
+  (ipfs-call "id" `(,(if peer-id (list "arg" peer-id)))))
 
 ;; ——————————————————
 
-;; STRING → (STRING || (NIL STRING)
+;; STRING → STRING || (NIL STRING
 (defun dns (domain &key (recursive 't))
   "Resolve a domain into a path (usually /ipfs/).
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dns"
-  (bind-api-result
-    (ipfs-call "dns" `(("arg" ,domain) ("recursive" ,recursive)))
-    (gethash "Path" result)))
+  (ipfs-call "dns" `(("arg" ,domain) ("recursive" ,recursive))))
 
 ;; STRING [:BOOLEAN :NUMBER :NUMBER] → STRING || (NIL STRING)
 (defun resolve (ipfs-path &key (recursive 't) (dht-record-count nil)
 			  (dht-timeout 30))
   "Resolve a given name to an IPFS path."
-  (bind-api-result
-    (ipfs-call "resolve" `(("arg" ,ipfs-path) ("recursive" ,recursive)
-                           ,(if dht-record-count
-			      (list "dht-record-count" dht-record-count))
-			   ("dht-timeout" ,(string+ dht-timeout "s"))))
-    (gethash "Path" result)))
-					      
+  (ipfs-call "resolve" `(("arg" ,ipfs-path) ("recursive" ,recursive)
+                        ,(if dht-record-count
+                           (list "dht-record-count" dht-record-count))
+                        ("dht-timeout" ,(string+ dht-timeout "s")))))
+
 ;; ——————————————————
 
 ;; NIL → NIL
@@ -191,8 +164,7 @@
 (defun bitswap-ledger (peer-id)
   "Show the current ledger for a peer.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-ledger"
-  (bind-api-alist
-    (ipfs-call "bitswap/ledger" `(("arg" ,peer-id)))))
+  (ipfs-call "bitswap/ledger" `(("arg" ,peer-id))))
 
 ;; NIL → NIL
 (defun bitswap-reprovide ()
@@ -204,15 +176,13 @@
 (defun bitswap-stat ()
   "Show diagnostic info on the bitswap agent.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-stat"
-  (bind-api-alist
-    (ipfs-call "bitswap/stat" '())))
+  (ipfs-call "bitswap/stat" '()))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun bitswap-wantlist (&optional peer-id)
   "Show blocks currently on the wantlist.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bitswap-wantlist"
-  (bind-api-alist
-    (ipfs-call "bitswap/wantlist" `(,(if peer-id (list "peer" peer-id))))))
+  (ipfs-call "bitswap/wantlist" `(,(if peer-id (list "peer" peer-id)))))
 
 
 
@@ -223,21 +193,18 @@
 (defun block-get (hash)
   "Get a raw IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-get"
-  (bind-api-result
-    (ipfs-call "block/get" `(("arg" ,hash)))
-    result))
+  (ipfs-call "block/get" `(("arg" ,hash))))
 
 ;; PATHNAME [:STRING :STRING :NUMBER :BOOLEAN] → ALIST || (NIL STRING)
 (defun block-put (pathname &key (format nil) (mhtype "sha2-256") (mhlen -1)
 		       (pin nil))
   "Store input as an IPFS block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-put"
-  (bind-api-alist
-    (ipfs-call "block/put" `(,(if format (list "format" format))
-			     ("mhtype" ,mhtype)
-			     ("mhlen" ,mhlen)
-			     ("pin" ,pin))
-	       :parameters `(("data" . ,pathname)))))
+  (ipfs-call "block/put" `(,(if format (list "format" format))
+                            ("mhtype" ,mhtype)
+                            ("mhlen" ,mhlen)
+                            ("pin" ,pin))
+             :parameters `(("data" . ,pathname))))
 
 ;; STRING → NIL
 (defun block-rm (hash &key (force nil))
@@ -250,8 +217,7 @@
 (defun block-stat (hash)
   "Print info about a raw IPFS block
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-block-stat"
-  (bind-api-alist
-    (ipfs-call "block/stat" `(("arg" ,hash)))))
+  (ipfs-call "block/stat" `(("arg" ,hash))))
 
 
 
@@ -262,9 +228,7 @@
 (defun bootstrap ()
   "Return a list of bootstrap peers
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap"
-  (bind-api-result
-    (ipfs-call "bootstrap" '())
-    (gethash "Peers" result)))
+  (cdr (ipfs-call "bootstrap" '())))
 
 ;; NIL → LIST || (NIL STRING)
 (defun bootstrap-list ()
@@ -276,33 +240,25 @@
 (defun bootstrap-add (peer)
   "Add a peer to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add"
-  (bind-api-result
-    (ipfs-call "bootstrap/add" `(("arg" ,peer)))
-    (gethash "Peers" result)))
+  (cdr (ipfs-call "bootstrap/add" `(("arg" ,peer)))))
 
 ;; NIL → LIST || (NIL STRING)
 (defun bootstrap-add-default ()
   "Add default peers to the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-add-default"
-  (bind-api-result
-    (ipfs-call "bootstrap/add/default" '())
-    (gethash "Peers" result)))
+  (cdr (ipfs-call "bootstrap/add/default" '())))
 
 ;; STRING → LIST || (NIL STRING)
 (defun bootstrap-rm (peer)
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
-  (bind-api-result
-    (ipfs-call "bootstrap/rm" `(("arg" ,peer)))
-    (gethash "Peers" result)))
+  (cdr (ipfs-call "bootstrap/rm" `(("arg" ,peer)))))
 
 ;; NIL → LIST || (NIL STRING)
 (defun bootstrap-rm-all ()
   "Remove a peer from the bootstrap list
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-bootstrap-rm"
-  (bind-api-result
-    (ipfs-call "bootstrap/rm/all" '())
-    (gethash "Peers" result)))
+  (cdr (ipfs-call "bootstrap/rm/all" '())))
 
 
 
@@ -313,11 +269,10 @@
 (defun cid-base32 (cid)
   "Convert a CID into Base32 CIDv1
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-cid-base32"
-  (bind-api-result
-    (ipfs-call "cid/base32" `(("arg" ,cid)))
-    (if (zerop (length (gethash "ErrorMsg" result)))
-      (gethash "Formatted" result)
-      (values nil (gethash "ErrorMsg" result)))))
+  (let ((result (ipfs-call "cid/base32" `(("arg" ,cid)))))
+    (if (zerop (length (cdr (s-assoc "ErrorMsg" result))))
+      (cdr (s-assoc "Formatted" result))
+      (values nil (cdr (s-assoc "ErrorMsg" result))))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun cid-bases ()
@@ -325,11 +280,7 @@
   name is a assigned a given code-number.
     ((CODE-A . NAME-A) (CODE-B . NAME-B) … (CODE-N . NAME-N))
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-cid-bases"
-  (bind-api-result
-    (ipfs-call "cid/bases" '())
-    (mapcan (lambda (base)
-	      `((,(gethash "Code" base) . ,(gethash "Name" base))))
-	    result)))
+  (ipfs-call "cid/bases" '()))
 
 
 
@@ -340,10 +291,9 @@
 (defun config (key &key (value nil) (bool nil) (json nil))
   "Get/set a config key's value.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-config"
-  (bind-api-result
+  (cdr (s-assoc "Value"
     (ipfs-call "config" `(("arg" ,key) ,(if value (list "value" value))
-				       ("bool" ,bool) ("json" ,json)))
-    (gethash "Value" result)))
+                          ("bool" ,bool) ("json" ,json))))))
 
 ;; NIL → ALIST
 (defun config-show ()
@@ -351,8 +301,7 @@
   sub-alists.
   Doesn't quite line up with #api-v0-config-show
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-config-show"
-  (bind-api-alist
-    (ipfs-call "config/show" '())))
+  (ipfs-call "config/show" '()))
 
 ;; STRING → STRING || (NIL STRING)
 (defun config-get (key)
@@ -377,25 +326,21 @@
 (defun dag-get (dag-node)
   "Get a dag node from IPFS.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-get"
-  (bind-api-result
-    (ipfs-call "dag/get" `(("arg" ,dag-node)))
-    result))
+  (ipfs-call "dag/get" `(("arg" ,dag-node))))
 
 ;; STRING [:STRING :STRING :BOOLEAN] → STRING || (NIL STRING
 (defun dag-put (dag-node &key (format "cbor") (input-enc "json") (pin 'T))
   "Add a dag node to IPFS. Returns CID string.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-put"
-  (bind-api-result
-    (ipfs-call "dag/put" `(("arg" ,dag-node) ("format" ,format)
-                           ("input-enc" ,input-enc) ("pin" ,pin)))
-    (gethash "/" (gethash "Cid" result))))
+  (ipfs-call "dag/put" `(("arg" ,dag-node) ("format" ,format)
+                         ("input-enc" ,input-enc) ("pin" ,pin))))
+;;    (gethash "/" (gethash "Cid" result))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun dag-resolve (path)
   "Resolve an IPLD block.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dag-resolve"
-  (bind-api-alist
-    (ipfs-call "dag/resolve" `(("arg" ,path)))))
+  (ipfs-call "dag/resolve" `(("arg" ,path))))
 
 
 
@@ -406,48 +351,41 @@
 (defun dht-findpeer (peer-id)
   "Find the multiaddresses associated with a peer ID.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-findpeer"
-  (bind-api-result
-    (ipfs-call "dht/findpeer" `(("arg" ,peer-id)))
-    (gethash "Addrs" (car (gethash "Responses"result)))))
+  (cdr (s-assoc "Addrs" (cadr (s-assoc "Responses"
+    (ipfs-call "dht/findpeer" `(("arg" ,peer-id))))))))
 
 ;; STRING [:NUMBER] → LIST || (NIL STRING)
 (defun dht-findprovs (key &key (provider-quantity 20))
   "Find peers that can provide a specific value, given a key.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-findprovs"
-  (bind-api-result
-    (ipfs-call "dht/findprovs"
-	       `(("arg" ,key)("num-providers" ,provider-quantity)))
-    (gethash "Addrs" (car (gethash "Responses"result)))))
+  (ipfs-call "dht/findprovs"
+   `(("arg" ,key)("num-providers" ,provider-quantity))))
 
 ;; STRING → LIST || (NIL STRING)
 (defun dht-get (key)
   "Query the routing system for a key's best value.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-get"
-  (bind-api-result
-    (ipfs-call "dht/get" `(("arg" ,key)))
-    (gethash "Addrs" (car (gethash "Responses"result)))))
+  (cdr (s-assoc "Addrs" (cadr (s-assoc "Responses"
+    (ipfs-call "dht/get" `(("arg" ,key))))))))
 
 ;; STRING [:BOOLEAN] → NIL
 (defun dht-provide (key &key (recursive nil))
   "Announce to the network that you're providing the given values.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-provide"
-  (bind-api-result
-    (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive)))
-    result))
+  (ipfs-call "dht/provide" `(("arg" ,key)("recursive" ,recursive))))
 
 ;; STRING STRING → NIL || (NIL STRING)
 (defun dht-put (key value)
   "Write a key-value pair to the routing system.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-put"
-  (bind-api-result (ipfs-call "dht/put" `(("arg" ,key)("arg" ,value))) result))
+  (ipfs-call "dht/put" `(("arg" ,key)("arg" ,value))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun dht-query (peer-id)
   "Find the closest peer IDs to the given one by querying the DHT.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-dht-query"
-  (bind-api-result
-    (ipfs-call "dht/query" `(("arg" ,peer-id)))
-    (re-hash-table-alist (gethash "Responses" result))))
+  (cdr (s-assoc "Responses"
+    (ipfs-call "dht/query" `(("arg" ,peer-id))))))
 
 
 
@@ -458,25 +396,25 @@
 (defun diag-cmds ()
   "List commands run on this IPFS node.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds"
-  (mapcar #'re-hash-table-alist (ipfs-call "diag/cmds" '())))
+  (ipfs-call "diag/cmds" NIL))
 
 ;; NIL → NIL || (NIL STRING)
 (defun diag-cmds-clear ()
   "Clear inactive requests from the log.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-clear"
-  (bind-api-result (ipfs-call "diag/cmds/clear" '()) result))
+  (ipfs-call "diag/cmds/clear" NIL))
 
 ;; NUMBER → NIL || (NIL STRING)
 (defun diag-cmds-set-time (time)
   "Set how long to keep inactive requests in the log.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-cmds-set-time"
-  (bind-api-result (ipfs-call "diag/cmds/set-time" `(("arg" ,time))) result))
+  (ipfs-call "diag/cmds/set-time" `(("arg" ,time))))
 
 ;; NIL → STRING || (NIL STRING)
 (defun diag-sys ()
   "Print system diagnostic info.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-diag-sys"
-  (bind-api-result (ipfs-call "diag/sys" '()) result))
+  (ipfs-call "diag/sys" NIL))
 
 
 
@@ -486,9 +424,8 @@
 (defun file-ls (path)
   "List directory contents for UNIX filesystem objects.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-file-ls"
-  (bind-api-result
-    (ipfs-call "file/ls" `(("arg" ,path)))
-    (assoc "Objects" (re-hash-table-alist result) :test #'equal)))
+  (cdr (s-assoc "Objects"
+    (ipfs-call "file/ls" `(("arg" ,path))))))
 
 
 
@@ -499,76 +436,63 @@
 (defun files-chcid (path &key (cid-version nil) (hash nil))
   "Change the cid version or hash function of the root node of a given path.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-chcid"
-  (bind-api-result
-    (ipfs-call "files/chcid" `(("arg" ,path)
-			       ,(if cid-version `("cid-version" ,cid-version))
-			       ,(if hash (list "hash" hash))))
-    result))
+  (ipfs-call "files/chcid" `(("arg" ,path)
+                             ,(if cid-version `("cid-version" ,cid-version))
+                             ,(if hash (list "hash" hash)))))
 
 ;; STRING STRING → NIL || (NIL STRING)
 (defun files-cp (source destination)
   "Copy files into mfs.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-cp"
-  (bind-api-result
-    (ipfs-call "files/cp" `(("arg" ,source)("arg" ,destination)))
-    result))
+  (ipfs-call "files/cp" `(("arg" ,source)("arg" ,destination))))
 
 ;; STRING → STRING
 (defun files-flush (&optional (path "/"))
   "Flush a given path's data to disk. Returns CID.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-flush"
-  (cadar (bind-api-alist (ipfs-call "files/flush" `(("arg" ,path))))))
+  (ipfs-call "files/flush" `(("arg" ,path))))
 
 ;; [STRING] → ALIST || (NIL STRING)
 (defun files-ls (&optional (path "/"))
   "List directories in local mutable namespace.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-ls"
-  (bind-api-alist (ipfs-call "files/ls" `(("arg" ,path)))))
+  (ipfs-call "files/ls" `(("arg" ,path))))
 
 ;; STRING [:BOOLEAN :NUMBER :STRING] → NIL || (NIL STRING)
 (defun files-mkdir (path &key (parents nil) (cid-version nil) (hash nil))
   "Make a directory.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-mkdir"
-  (bind-api-result
-    (ipfs-call "files/mkdir" `(("arg" ,path)
-			       ,(if parents (list "parents" parents))
-			       ,(if cid-version `("cid-version" ,cid-version))
-			       ,(if hash (list "hash" hash))))
-    result))
+  (ipfs-call "files/mkdir" `(("arg" ,path)
+                             ,(if parents (list "parents" parents))
+                             ,(if cid-version `("cid-version" ,cid-version))
+                             ,(if hash (list "hash" hash)))))
 
 ;; STRING STRING → NIL || (NIL STRING)
 (defun files-mv (source destination)
   "Move a file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-mv"
-  (bind-api-result
-    (ipfs-call "files/mv" `(("arg" ,source)("arg" ,destination)))
-    result))
+  (ipfs-call "files/mv" `(("arg" ,source)("arg" ,destination))))
 
 ;; STRING [:NUMBER :NUMBER] → STRING || (NIL STRING)
 (defun files-read (path &key (offset nil) (max nil))
   "Read a file in given mfs.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-read"
-  (bind-api-result
-    (ipfs-call "files/read" `(("arg" ,path)
-			      ,(if offset (list "offset" offset))
-			      ,(if max (list "max" max))))
-    result))
+  (ipfs-call "files/read" `(("arg" ,path)
+                            ,(if offset (list "offset" offset))
+                            ,(if max (list "max" max)))))
 
 ;; STRING [:BOOLEAN :BOOLEAN] → NIL || (NIL STRING)
 (defun files-rm (path &key (recursive nil) (force nil))
   "Remove a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (bind-api-result
-    (ipfs-call "files/read" `(("arg" ,source) ("recursive" ,recursive)
-					      ("force" ,force)))
-    result))
+  (ipfs-call "files/read" `(("arg" ,source) ("recursive" ,recursive)
+                                            ("force" ,force))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun files-stat (path)
   "Remove a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (bind-api-alist
-    (ipfs-call "files/stat" `(("arg" ,path)))))
+  (ipfs-call "files/stat" `(("arg" ,path))))
 
 ;; PATHNAME STRING [:NUMBER :BOOLEAN :BOOLEAN :BOOLEAN :NUMBER :BOOLEAN
 ;;                  :NUMBER :STRING]
@@ -577,18 +501,16 @@
 			     &key (offset nil) (create nil) (parents nil)
 			     (truncate nil) (count nil) (raw-leaves nil)
 			     (cid-version nil) (hash nil))
-  "Remove a given file.
+  "Write to a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (bind-api-result
-    (ipfs-call "files/write" `(("arg" ,dest-path) ("create" ,create)
-			        ("parents" ,parents) ("truncate" ,truncate)
-				("raw-leaves" ,raw-leaves)
-			       ,(if offset (list "offset" offset))
-			       ,(if count (list "count" count))
-			       ,(if cid-version `("cid-version" ,cid-version))
-			       ,(if hash (list "hash" hash)))
-	       :parameters `(("file" . ,pathname)))
-    result))
+  (ipfs-call "files/write"
+  `(("arg" ,dest-path) ("create" ,create) ("parents" ,parents)
+    ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
+    ,(if offset (list "offset" offset))
+    ,(if count (list "count" count))
+    ,(if cid-version `("cid-version" ,cid-version))
+    ,(if hash (list "hash" hash)))
+  :parameters `(("file" . ,pathname))))
 
 
 
@@ -599,19 +521,19 @@
 (defun filestore-dups ()
   "List blocks that're both in the filestore and standard block storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-dups"
-  (bind-api-alist (ipfs-call "filestore/dups" '())))
+  (ipfs-call "filestore/dups" '()))
 
 ;; [STRING] → ALIST || (NIL STRING)
 (defun filestore-ls (&optional cid)
   "List objects in filestore.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-ls"
-  (bind-api-alist (ipfs-call "filestore/ls" `(,(if cid (list "arg" cid))))))
+  (ipfs-call "filestore/ls" `(,(if cid (list "arg" cid)))))
 
 ;; [STRING] → ALIST || (NIL STRING)
 (defun filestore-verify (&optional cid)
   "Verify objects in filestore.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-filestore-verify"
-  (bind-api-alist (ipfs-call "filestore/verify" `(,(if cid (list "arg" cid))))))
+  (ipfs-call "filestore/verify" `(,(if cid (list "arg" cid)))))
 
 
 
@@ -622,28 +544,26 @@
 (defun key-gen (name &key (type nil) (size nil))
   "Create a new keypair.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-gen"
-  (bind-api-alist
-    (ipfs-call "key/gen" `(("name" ,name) ,(if type (list "type" type))
-					  ,(if size (list "size" size))))))
+  (ipfs-call "key/gen" `(("name" ,name) ,(if type (list "type" type))
+                                        ,(if size (list "size" size)))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun key-list ()
   "List all local keypairs.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-list"
-  (bind-api-alist (ipfs-call "key/list" '())))
+  (ipfs-call "key/list" '()))
 
 ;; STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
 (defun key-rename (old-name new-name &key (force nil))
   "Rename a local keypair.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-rename"
-  (bind-api-alist
-    (ipfs-call "key/rename" `(("arg" ,old-name) ("arg" ,new-name)
-						("force" ,force)))))
+  (ipfs-call "key/rename" `(("arg" ,old-name) ("arg" ,new-name)
+                                              ("force" ,force))))
 ;; STRING → ALIST || (NIL STRING)
 (defun key-remove (name)
   "Remove a keypair, based on name.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-key-remove"
-  (bind-api-alist (ipfs-call "key/remove" `(("arg" ,name)))))
+  (ipfs-call "key/remove" `(("arg" ,name))))
 
 
 
@@ -654,22 +574,20 @@
 (defun log-level (subsystem level)
   "Change the logging level of a subsystem.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-level"
-  (bind-api-result
-    (ipfs-call "log/level" `(("arg" ,subsystem)("arg" ,level)))
-    (gethash "Message" result)))
+  (cdr (s-assoc "Message"
+    (ipfs-call "log/level" `(("arg" ,subsystem)("arg" ,level))))))
 
 ;; NIL → LIST || (NIL STRING)
 (defun log-ls ()
   "List the logging subsystems.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-ls"
-  (bind-api-result (ipfs-call "log/ls" '()) (gethash "Strings" result)))
+  (cdr (ipfs-call "log/ls" '())))
 
 ;; NIL → STRING || (NIL STRING)
 (defun log-tail ()
   "Read the event log.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-log-tail"
-  (bind-api-result (ipfs-call "log/tail" '()) result))
-
+  (ipfs-call "log/tail" '()) result)
 
 
 
@@ -681,48 +599,44 @@
 			       (allow-offline 'T) (ttl nil))
   "Publish an IPNS name-- associate it with an IPFS path.
    /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-publish"
-  (bind-api-alist
-    (ipfs-call "name/publish" `(("arg" ,ipfs-path)("resolve" ,resolve)
-				("lifetime" ,lifetime)
-				("allow-offline" ,allow-offline)
-				,(if ttl (list "ttl" ttl))))))
+  (ipfs-call "name/publish" `(("arg" ,ipfs-path)("resolve" ,resolve)
+                              ("lifetime" ,lifetime)
+                              ("allow-offline" ,allow-offline)
+                              ,(if ttl (list "ttl" ttl)))))
 
 ;; STRING → STRING || (NIL STRING)
 (defun name-pubsub-cancel (name)
   "Cancel subscription to a name.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-cancel"
-  (bind-api-result (ipfs-call "name/pubsub/cancel" `(("arg" ,name)))
-		   (gethash "Canceled" result)))
+  (cdr (s-assoc "Cancelled"
+    (ipfs-call "name/pubsub/cancel" `(("arg" ,name))))))
 
 ;; NIL → STRING || (NIL STRING)
 (defun name-pubsub-state ()
   "Query the state of IPNS pubsub.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-state"
-  (bind-api-result (ipfs-call "name/pubsub/state" '())
-		   (gethash "Enabled" result)))
+  (cdr (s-assoc "Enabled"
+    (ipfs-call "name/pubsub/state" '()))))
 
 ;; NIL → STRING || (NIL STRING)
 (defun name-pubsub-subs ()
   "Show current name subscriptions.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-pubsub-subs"
-  (bind-api-result (ipfs-call "name/pubsub/subs" '())
-		   (gethash "Strings" result)))
+  (cdr (s-assoc "Strings"
+    (ipfs-call "name/pubsub/subs" '()))))
 
 ;; STRING [:BOOLEAN :BOOLEAN :NUMBER :STRING] → STRING || (NIL STRING)
 (defun name-resolve (name &key (recursive 't) (nocache "")
 			  (dht-record-count nil) (dht-timeout nil))
   "Resolve a given IPNS name.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-name-resolve"
-  (bind-api-result
-    (ipfs-call "name/resolve" `(("arg" ,name)("recursive" ,recursive)
-				,(when (not (empty-string-p nocache))
-				   (list "nocache" nocache))
-				,(when dht-record-count
-				   (list "dht-record-count" dht-record-count))
-				,(when dht-timeout
-				   (list "dht-timeout" dht-timeout))))
-    (gethash "Path" result)))
-
+  (ipfs-call "name/resolve" `(("arg" ,name)("recursive" ,recursive)
+                              ,(when (not (empty-string-p nocache))
+                                 (list "nocache" nocache))
+                              ,(when dht-record-count
+                                 (list "dht-record-count" dht-record-count))
+                              ,(when dht-timeout
+                                 (list "dht-timeout" dht-timeout)))))
 
 
 
@@ -733,58 +647,51 @@
 (defun object-data (key)
   "Output the raw data of an IPFS object.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-data"
-  (bind-api-result (ipfs-call "object/data" `(("arg" ,key))) result))
+  (ipfs-call "object/data" `(("arg" ,key))))
 
 ;; STRING STRING → ALIST || (NIL STRING)
 (defun object-diff (object-a object-b)
   "Display the differences between two IPFS objects.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-diff"
-  (bind-api-alist
-    (ipfs-call "object/diff" `(("arg" ,object-a)("arg" ,object-b)))))
+  (ipfs-call "object/diff" `(("arg" ,object-a)("arg" ,object-b))))
 
 ;; STRING [:STRING] → STRING || (NIL STRING)
 (defun object-get (key &key (data-encoding "text"))
   "Get and serialize the named DAG node.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-get"
-  (bind-api-result
-    (ipfs-call "object/get" `(("arg" ,key)("data-encoding" ,data-encoding)))
-    result))
+  (ipfs-call "object/get" `(("arg" ,key)("data-encoding" ,data-encoding))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun object-links (key)
   "Output the links pointed to by the specified object.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-links"
-  (bind-api-alist (ipfs-call "object/links" `(("arg" ,key)))))
+  (ipfs-call "object/links" `(("arg" ,key))))
 
 ;; [:STRING] → ALIST || (NIL STRING)
 (defun object-new (&key (template nil))
   "Create a new object from an IPFS template.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-new"
-  (bind-api-alist
-    (ipfs-call "object/new"`(,(if template `("template" ,template))))))
+  (ipfs-call "object/new"`(,(if template `("template" ,template)))))
 
 ;; STRING STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
 (defun object-patch-add-link (hash name object &key (create ""))
   "Add a link to a given object.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-patch-add-link"
-  (bind-api-alist
-    (ipfs-call "object/patch/add-link"
-	       `(("arg" ,hash)("arg" ,name)("arg" ,object)
-		 ,(when (not (empty-string-p create)) `("create" ,create))))))
+  (ipfs-call "object/patch/add-link"
+             `(("arg" ,hash)("arg" ,name)("arg" ,object)
+               ,(when (not (empty-string-p create)) `("create" ,create)))))
 
 ;; STRING STRING → ALIST || (NIL STRING)
 (defun object-patch-rm-link (hash name)
   "Remove a link from a given object.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-patch-rm-link"
-  (bind-api-alist
-    (ipfs-call "object/patch/rm-link" `(("arg" ,hash)("arg" ,name)))))
+  (ipfs-call "object/patch/rm-link" `(("arg" ,hash)("arg" ,name))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun object-stat (key)
   "Get stats for a DAG node.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-object-stat"
-  (bind-api-alist (ipfs-call "object/stat" `(("arg" ,key)))))
-
+  (ipfs-call "object/stat" `(("arg" ,key))))
 
 
 
@@ -796,66 +703,57 @@
 		       (target-address nil))
   "Stop listening for new connections to forward.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-close"
-  (bind-api-result
-    (ipfs-call "p2p/close" `(,(when (not (empty-string-p all)) `("all" ,all))
-			      ,(when protocol `("protocol" ,protocol))
-			      ,(when listen-address
-				 `("listen-address" ,listen-address))
-			      ,(when target-address
-				 `("target-address" ,target-address))))
-    result))
+  (ipfs-call "p2p/close" `(,(when (not (empty-string-p all)) `("all" ,all))
+                            ,(when protocol `("protocol" ,protocol))
+                            ,(when listen-address
+                               `("listen-address" ,listen-address))
+                            ,(when target-address
+                               `("target-address" ,target-address)))))
 
 ;; STRING STRING STRING [:BOOLEAN] → STRING || (NIL STRING)
 (defun p2p-forward (protocol listening-endpoint target-endpoint
 			     &key (allow-custom-protocol ""))
   "Forward connections to libp2p service.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-forward"
-  (bind-api-result
-    (ipfs-call "p2p/forward" `(("arg" ,protocol)("arg" ,listening-endpoint)
-			       ("arg" ,target-endpoint)
-			       ,(when
-				  (not (empty-string-p allow-custom-protocol))
-				  `("allow-custom-protocol"
-				    ,allow-custom-protocol))))
-    result))
+  (ipfs-call "p2p/forward" `(("arg" ,protocol)("arg" ,listening-endpoint)
+                             ("arg" ,target-endpoint)
+                             ,(when
+                                (not (empty-string-p allow-custom-protocol))
+                                `("allow-custom-protocol"
+                                  ,allow-custom-protocol)))))
 
 ;; STRING STRING [:BOOLEAN :BOOLEAN] → STRING || (NIL STRING)
 (defun p2p-listen (protocol target-endpoint
 			    &key (allow-custom-protocol "") (report-peer-id ""))
   "Create libp2p service.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-listen"
-  (bind-api-result
-    (ipfs-call "p2p/listen" `(("arg" ,protocol)("arg" ,target-endpoint)
-			       ,(when
-				  (not (empty-string-p allow-custom-protocol))
-				  `("allow-custom-protocol"
-				    ,allow-custom-protocol))
-			       ,(when (not (empty-string-p report-peer-id))
-				  `("report-peer-id" ,report-peer-id))))
-    result))
+  (ipfs-call "p2p/listen" `(("arg" ,protocol)("arg" ,target-endpoint)
+                            ,(when
+                               (not (empty-string-p allow-custom-protocol))
+                               `("allow-custom-protocol"
+                                 ,allow-custom-protocol))
+                            ,(when (not (empty-string-p report-peer-id))
+                               `("report-peer-id" ,report-peer-id)))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun p2p-ls ()
   "List active p2p listeners.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-ls"
-  (bind-api-alist (ipfs-call "p2p/ls" '())))
+  (ipfs-call "p2p/ls" '()))
 
 ;; [:STRING :BOOLEAN] → STRING || (NIL STRING)
 (defun p2p-stream-close (&key (identifier nil) (all ""))
   "Close an active p2p stream.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-stream-close"
-  (bind-api-result
-    (ipfs-call "p2p/stream/close" `(,(when identifier `("arg" ,identifier))
-				     ,(when (not (empty-string-p all))
-					`("all" ,all))))
-    result))
+  (ipfs-call "p2p/stream/close" `(,(when identifier `("arg" ,identifier))
+                                   ,(when (not (empty-string-p all))
+                                      `("all" ,all)))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun p2p-stream-ls ()
   "List active p2p streams.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-p2p-stream-ls"
-  (bind-api-alist (ipfs-call "p2p/stream/ls" '())))
-
+  (ipfs-call "p2p/stream/ls" '()))
 
 
 
@@ -866,37 +764,32 @@
 (defun pin-add (path &key (recursive 'T))
   "Pin an object to local storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-add"
-  (bind-api-alist
-    (ipfs-call "pin/add" `(("arg" ,path)("recursive" ,recursive)))))
+  (ipfs-call "pin/add" `(("arg" ,path)("recursive" ,recursive))))
 
 ;; [:STRING :STRING] → ALIST || (NIL STRING)
 (defun pin-ls (&key (path nil) (type "all"))
   "List objects pinned to local storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-ls"
-  (bind-api-alist
-    (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type)))))
+  (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type))))
 
 ;; STRING [:BOOLEAN] → ALIAS || (NIL STRING)
 (defun pin-rm (path &key (recursive 'T))
   "Remove pinned objects from local storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-rm"
-  (bind-api-alist
-    (ipfs-call "pin/rm" `(("arg" ,path)("recursive" ,recursive)))))
+  (ipfs-call "pin/rm" `(("arg" ,path)("recursive" ,recursive))))
 
 ;; STRING STRING [:BOOLEAN] → ALIST || (NIL STRING)
 (defun pin-update (old-path new-path &key (unpin 'T))
   "Update a recursive pin.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-update"
-  (bind-api-alist
-    (ipfs-call "pin/update"
-	       `(("arg" ,old-path)("arg" ,new-path)("unpin" ,unpin)))))
+  (ipfs-call "pin/update"
+             `(("arg" ,old-path)("arg" ,new-path)("unpin" ,unpin))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun pin-verify ()
   "Verify that recursive pins are complete.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-verify"
-  (bind-api-alist (ipfs-call "pin/verify" '())))
-
+  (ipfs-call "pin/verify" '()))
 
 
 
@@ -958,18 +851,15 @@
 (defun pubsub-ls ()
   "Return a list of subscribed topics.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-ls"
-  (bind-api-result
-    (ipfs-call "pubsub/ls" '())
-    (gethash "Strings" result)))
+  (s-assoc "Strings"
+    (ipfs-call "pubsub/ls" '())))
 
 ;; [STRING] → LIST || (NIL STRING)
 (defun pubsub-peers (&optional topic)
   "Return a list of peers with pubsub enabled.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pubsub-peers"
-  (bind-api-result
-    (ipfs-call "pubsub/peers" `(,(if topic (list "arg" topic))))
-    (gethash "Strings" result)))
-
+  (s-assoc "Strings"
+    (ipfs-call "pubsub/peers" `(,(if topic (list "arg" topic))))))
 
 
 
@@ -980,19 +870,17 @@
 (defun refs (path &key (unique "") (recursive "") (max-depth -1))
   "List links (references) from an object.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-refs"
-  (bind-api-alist
-    (ipfs-call "refs" `(("arg" ,path)("max-depth" ,max-depth)
-			,(if (not (empty-string-p recursive))
-			   `("recursive" ,recursive))
-			,(if (not (empty-string-p unique))
-			   `("unique" ,unique))))))
+  (ipfs-call "refs" `(("arg" ,path)("max-depth" ,max-depth)
+                      ,(if (not (empty-string-p recursive))
+                         `("recursive" ,recursive))
+                      ,(if (not (empty-string-p unique))
+                         `("unique" ,unique)))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun refs-local ()
   "List all local references.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-refs-local"
-  (bind-api-alist (ipfs-call "refs/local" '())))
-
+  (ipfs-call "refs/local" '()))
 
 
 
@@ -1003,33 +891,31 @@
 (defun repo-fsck ()
   "Remove repo lock-files.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-fsck"
-  (bind-api-result (ipfs-call "repo/fsck" '()) (gethash "Message" result)))
+  (cdr (s-assoc "Message" (ipfs-call "repo/fsck" '()))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun repo-gc ()
   "Perform garbage collection on the repo.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-gc"
-  (bind-api-alist (ipfs-call "repo/gc" '())))
+  (ipfs-call "repo/gc" '()))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun repo-stat ()
   "Get stats for the current repo.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-stat"
-  (bind-api-alist (ipfs-call "repo/stat" '())))
+  (ipfs-call "repo/stat" '()))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun repo-verify ()
   "Verify that all repo blocks aren't corrupted.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-verify"
-  (bind-api-alist (ipfs-call "repo/verify" '())))
+  (ipfs-call "repo/verify" '()))
 
 ;; NIL → NUMBER || (NIL STRING)
 (defun repo-version ()
   "Show the repo version.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-repo-version"
-  (bind-api-result (ipfs-call "repo/version" '())
-		   (read-from-string (gethash "Version" result))))
-
+  (parse-integer (ipfs-call "repo/version" '())))
 
 
 
@@ -1040,24 +926,22 @@
 (defun stats-bitswap ()
   "Show diagnostics on bitswap.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-bitswap"
-  (bind-api-alist (ipfs-call "stats/bitswap" '())))
+  (ipfs-call "stats/bitswap" '()))
 
 ;; [:STRING :STRING :STRING] → ALIST || (NIL STRING)
 (defun stats-bw (&key (peer nil) (proto nil) (interval nil))
   "Return bandwidth information.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-bw"
-  (bind-api-alist
-    (ipfs-call "stats/bitswap"
-	       `(,(when peer `("peer" ,peer)) ,(when proto `("proto" ,proto))
-                 ,(when interval `("interval" ,interval))
-		 ,(when interval `("poll" 'T))))))
+  (ipfs-call "stats/bitswap"
+             `(,(when peer `("peer" ,peer)) ,(when proto `("proto" ,proto))
+               ,(when interval `("interval" ,interval))
+               ,(when interval `("poll" 'T)))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun stats-repo ()
   "Show diagnostics on current repo.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-stats-repo"
-  (bind-api-alist (ipfs-call "stats/repo" '())))
-
+  (ipfs-call "stats/repo" '()))
 
 
 
@@ -1068,65 +952,55 @@
 (defun swarm-addrs ()
   "List known addresses.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs"
-  (bind-api-result (ipfs-call "swarm/addrs" '())
-		   (re-hash-table-alist (gethash "Addrs" result))))
+  (ipfs-call "swarm/addrs" '()))
 
 ;; NIL → LIST || (NIL STRING)
 (defun swarm-addrs-listen ()
   "List interface listening addresses.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs-listen"
-  (bind-api-result (ipfs-call "swarm/addrs/listen" '())
-		   (gethash "Strings" result)))
+  (cdr (ipfs-call "swarm/addrs/listen" '())))
 
 ;; NIL → LIST || (NIL STRING)
 (defun swarm-addrs-local ()
   "List local addresses.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-addrs-local"
-  (bind-api-result (ipfs-call "swarm/addrs/local" '())
-		   (gethash "Strings" result)))
+  (cdr (ipfs-call "swarm/addrs/local" '())))
 
 ;; STRING → LIST || (NIL STRING)
 (defun swarm-connect (address)
   "Open connection to a given address.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-connect"
-  (bind-api-result (ipfs-call "swarm/connect" `(("arg" ,address)))
-		   (gethash "Strings" result)))
+  (cdr (ipfs-call "swarm/connect" `(("arg" ,address)))))
 
 ;; STRING → LIST || (NIL STRING)
 (defun swarm-disconnect (address)
   "Close connection to a given address.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-disconnect"
-  (bind-api-result (ipfs-call "swarm/disconnect" `(("arg" ,address)))
-		   (gethash "Strings" result)))
-
+  (cdr (ipfs-call "swarm/disconnect" `(("arg" ,address)))))
 
 ;; NIL → LIST || (NIL STRING)
 (defun swarm-filters ()
   "List address filters.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters"
-  (bind-api-result (ipfs-call "swarm/filters" '()) (gethash "Strings" result)))
+  (ipfs-call "swarm/filters" '()))
 
 ;; STRING → LIST || (NIL STRING)
 (defun swarm-filters-add (multiaddr)
   "Add an address filter.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters-add"
-  (bind-api-result (ipfs-call "swarm/filters/add" `(("arg" ,multiaddr)))
-		   (gethash "Strings" result)))
+  (ipfs-call "swarm/filters/add" `(("arg" ,multiaddr))))
 
 ;; STRING → LIST || (NIL STRING)
 (defun swarm-filters-rm (multiaddr)
   "Remove an address filter.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-filters-rm"
-  (bind-api-result (ipfs-call "swarm/filters/rm" `(("arg" ,multiaddr)))
-		   (gethash "Strings" result)))
+  (ipfs-call "swarm/filters/rm" `(("arg" ,multiaddr))))
 
 ;; NIL → ALIST || (NIL STRING)
 (defun swarm-peers ()
   "List peers with open connections.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-swarm-peers"
-  (bind-api-result (ipfs-call "swarm/peers" '())
-		   (mapcar #'re-hash-table-alist (gethash "Peers" result))))
-
+ (ipfs-call "swarm/peers" '()))
 
 
 
@@ -1137,68 +1011,53 @@
 (defun urlstore-add (url &key (pin 'T) (trickle ""))
   "Add a URL via urlstore.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-urlstore-add"
-  (bind-api-alist
-    (ipfs-call "urlstore/add" `(("arg" ,url)("pin" ,pin)
-				,(when (not (empty-string-p trickle))
-				   `("trickle" ,trickle))))))
-
+  (ipfs-call "urlstore/add"`(("arg" ,url)("pin" ,pin)
+                              ,(when (not (empty-string-p trickle))
+                                 `("trickle" ,trickle)))))
 
 
 
 ;; —————————————————————————————————————
 ;; VERSION CALLS
 
-;; NIL → STRING
+;; NIL → LIST || (NIL STRING)
 (defun version ()
-  "Return the current IPFS version.
+  "Return the current golang, system, repo, and IPFS versions.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
-  (bind-api-result
-    (ipfs-call "version" '())
-    (gethash "Version" result)))
+  (ipfs-call "version" nil))
 
 ;; NIL → ALIST
 (defun version-deps ()
   "Return info about dependencies used for build; I.E., Go version, OS, etc.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-version"
-  (bind-api-alist
-    (ipfs-call "version/deps" '())))
-
+  (ipfs-call "version/deps" '()))
 
 
 
 ;; —————————————————————————————————————
 ;; UTIL
 
-;; FORM → BOOLEAN
-(defmacro error-p (form)
-  "Return whether or not a given form errors out."
-  `(multiple-value-bind (return error) (ignore-errors ,form)
-     return
-     (when error 'T)))
+;; LIST -> LIST
+(defun simplify (list)
+  "'Simplify' a list. Remove any extraneous sublisting [ ((2 3)) -> (2 3) ],
+  and remove extraneous strings in otherwise pure alists, e.g.
+  [ (``Apple'' (2 2) (3 3) (4 4)) -> ((2 2) (3 3) (4 4)) ]"
+  (cond ((and (stringp (car list))
+              (stringp (cdr list)))
+         (cdr list))
+        ((and (eq 1 (length list))
+              (consp list))
+         (simplify (car list)))
+        ((and (consp list)
+              (stringp (car list))
+              (consp (cadr list)))
+         (simplify (cdr list)))
+        ('T list)))
 
-;; VARYING → BOOLEAN
-(defun pure-cons-p (item)
-  "Return whether or not an item is 'purely' a cons-pair; that is, it isn't of
-   a larger list. In these cases, #'consp passes, but #'length errors out."
-  (and (consp item)
-       (error-p (length item))))
-
-;; FUNCTION FUNCTION LIST/VARYING → LIST
-(defun test-apply (test function data)
-  "Apply a given function to all items within a list that pass the given test,
-  recursively. AKA, if the given function returns another list, the process is
-  applied to that list as well. So on and so forth."
-  (cond ((pure-cons-p data)
-	 (test-apply test function
-		     `(,(car data) ,(cdr data))))
-	((listp data)
-	 (mapcar
-	   (lambda (item) (test-apply test function item))
-	   data))
-	((funcall test data)
-	 (test-apply test function
-		     (funcall function data)))
-	('T data)))
+;; STRING LIST
+(defun s-assoc (key alist)
+  "Get the value of an associative list using a string key."
+  (assoc key alist :test #'string-equal))
 
 ;; STRING-A STRING-B … STRING-N → STRING
 (defun string+ (&rest strings)
@@ -1209,14 +1068,6 @@
 (defun empty-string-p (string)
   "Return whether or not a given item is an empty string."
   (and (stringp string) (zerop (length string))))
-
-;; HASH-TABLE → ALIST
-(defun re-hash-table-alist (hash-table)
-  "Turn a hash-table into an associative list, recursively-- if any of the
-  hash-table's values are ther hash-tables, they too are turned into alists."
-  (test-apply #'hash-table-p
-	      #'alexandria:hash-table-alist
-	      (alexandria:hash-table-alist hash-table)))
 
 ;; STRING → STRING
 (defun url-encode (string &rest ignored)

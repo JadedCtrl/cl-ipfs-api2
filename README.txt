@@ -119,4 +119,4 @@ BORING STUFF
 License is the GNU GPLv3:
        check COPYING.txt (/ipfs/QmTBpqbvJLZaq3hTMUhxX5hyJaSCeWe6Q5FRctQbsD6EsE)
 Author is Jaidyn Ann <jadedctrl@teknik.io>
-Sauce is at https://git.eunichx.us/cl-ipfs-api2.git
+Sauce is at https://git.feneas.org/detruota/cl-ipfs-api2
