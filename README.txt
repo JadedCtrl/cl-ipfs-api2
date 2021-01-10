@@ -116,7 +116,8 @@ $IPFS_PATH), the :env arguments (unless otherwise specified) will default to
 ————————————————————————————————————————
 BORING STUFF
 ————————————————————————————————————————
-License is the GNU GPLv3:
-       check COPYING.txt (/ipfs/QmTBpqbvJLZaq3hTMUhxX5hyJaSCeWe6Q5FRctQbsD6EsE)
+License is the GNU LGPLv3:
+       check COPYING.txt (/ipfs/QmR8Rnk5QdXgrXRqmgMLmG5PuHZEjujfa3rfVhPV99TLY7)
 Author is Jaidyn Ann <jadedctrl@teknik.io>
 Sauce is at https://git.feneas.org/detruota/cl-ipfs-api2
+            https://github.com/JadedCtrl/cl-ipfs-api2
