@@ -78,10 +78,10 @@
 ;; ROOT CALLS
 
 ;; PATHNAME → (HASH-STRING SIZE-NUMBER) || (NIL STRING)
-(defun add (pathname &key (pin 't) (only-hash nil))
+(defun add (pathname &key (pin 't) (only-hash nil) (cid-version 0))
   "Add a file to IPFS, return it's hash.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
-  (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash))
+  (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash) ("cid-version" ,cid-version))
              :parameters `(("file" . ,pathname))))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
