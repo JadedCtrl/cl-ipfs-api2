@@ -31,26 +31,30 @@
    recieved, two values are returned: NIL and the string-error-message."
   (let ((result
           (drakma:http-request
-            (make-call-url *api-host* *api-root* call arguments)
+            (make-call-url call arguments)
             :method method
             :url-encoder #'ipfs::url-encode
             :parameters parameters
             :want-stream want-stream)))
+    (if want-stream
+        result
+        (process-result result))))
 
-    (cond (want-stream result)
-          ((stringp result) (values nil result))
-          ((vectorp result)
-           (let* ((string (flexi-streams:octets-to-string result))
-                  (alist
-                    (with-input-from-string (stream string)
-                      (loop while (peek-char t stream nil)
-                            collect (yason:parse stream :object-as :alist)))))
-             (if (ignore-errors (equal (cdr (s-assoc "Type" (simplify alist))) "error"))
-               (values NIL (cdr (s-assoc "Message" (simplify alist))))
-               (simplify alist)))))))
+(defun process-result (result)
+  (cond
+    ((stringp result) (values nil result))
+    ((vectorp result)
+     (let* ((string (flexi-streams:octets-to-string result))
+            (alist
+              (with-input-from-string (stream string)
+                (loop while (peek-char t stream nil)
+                      collect (yason:parse stream :object-as :alist)))))
+       (if (ignore-errors (equal (cdr (s-assoc "Type" (simplify alist))) "error"))
+           (values NIL (cdr (s-assoc "Message" (simplify alist))))
+              (simplify alist))))))
 
-;; STRING STRING LIST → STRING
-(defun make-call-url (host root call arguments)
+;; STRING LIST &key STRING STRING → STRING
+(defun make-call-url (call arguments &key (host *api-host*) (root *api-root*))
   "Create the URL of an API call, as per the given arguments.
   Symbols are assumed to be something like 'T (so boolean), nil likewise.
   Arguments should look like this:
@@ -497,20 +501,27 @@
 ;; PATHNAME STRING [:NUMBER :BOOLEAN :BOOLEAN :BOOLEAN :NUMBER :BOOLEAN
 ;;                  :NUMBER :STRING]
 ;;                 → NIL || (NIL STRING)
-(defun files-write (pathname dest-path
+(defun files-write (path-or-string dest-path
 			     &key (offset nil) (create nil) (parents nil)
 			     (truncate nil) (count nil) (raw-leaves nil)
 			     (cid-version nil) (hash nil))
-  "Write to a given file.
+  "Write to a given file. First parameter can be a string or a path to
+a local file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (ipfs-call "files/write"
-  `(("arg" ,dest-path) ("create" ,create) ("parents" ,parents)
-    ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
-    ,(if offset (list "offset" offset))
-    ,(if count (list "count" count))
-    ,(if cid-version `("cid-version" ,cid-version))
-    ,(if hash (list "hash" hash)))
-  :parameters `(("file" . ,pathname))))
+  (let ((result
+          (drakma:http-request
+           (make-call-url
+            "files/write"
+            `(("arg" ,dest-path) ("create", create) ("parents" ,parents)
+              ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
+              ,@(when offset (list "offset" offset))
+              ,@(when count (list "count" count))
+              ,@(when cid-version `("cid-version" ,cid-version))
+              ,@(when hash (list "hash" hash))))
+           :method :post
+           :parameters `(("data" . ,path-or-string))
+           :form-data t)))
+    (process-result result)))
 
 
 
