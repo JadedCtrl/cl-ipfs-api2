@@ -30,28 +30,29 @@
    If the JSON is 'error JSON', I.E., it signals that an error has been
    recieved, two values are returned: NIL and the string-error-message."
   (let ((result
-          (drakma:http-request
+          (multiple-value-list
+           (drakma:http-request
             (make-call-url call arguments)
             :method method
             :url-encoder #'ipfs::url-encode
             :parameters parameters
-            :want-stream want-stream)))
+            :want-stream want-stream))))
     (if want-stream
-        result
-        (process-result result))))
+        (car result)
+        (apply #'process-result result))))
 
-(defun process-result (result)
-  (cond
-    ((stringp result) (values nil result))
-    ((vectorp result)
-     (let* ((string (flexi-streams:octets-to-string result))
-            (alist
-              (with-input-from-string (stream string)
-                (loop while (peek-char t stream nil)
-                      collect (yason:parse stream :object-as :alist)))))
-       (if (ignore-errors (equal (cdr (s-assoc "Type" (simplify alist))) "error"))
-           (values NIL (cdr (s-assoc "Message" (simplify alist))))
-              (simplify alist))))))
+(defun process-result (body status-code headers uri http-stream must-close status-text)
+  (declare (ignore uri http-stream must-close status-text))
+  (let* ((result (cond ((stringp body) body)
+                       ((vectorp body) (flexi-streams:octets-to-string body))))
+         (result (if (search "application/json" (cdr (assoc :content-type headers)))
+                     (simplify (yason:parse result :object-as :alist))
+                     result)))
+    (if (eql 200 status-code)
+        result
+        (values nil (if (stringp result)
+                        result
+                        (ignore-errors (cdr (s-assoc "Message" result))))))))
 
 ;; STRING LIST &key STRING STRING → STRING
 (defun make-call-url (call arguments &key (host *api-host*) (root *api-root*))
@@ -509,19 +510,20 @@
 a local file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
   (let ((result
-          (drakma:http-request
-           (make-call-url
-            "files/write"
-            `(("arg" ,dest-path) ("create", create) ("parents" ,parents)
-              ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
-              ,@(when offset (list "offset" offset))
-              ,@(when count (list "count" count))
-              ,@(when cid-version `("cid-version" ,cid-version))
-              ,@(when hash (list "hash" hash))))
-           :method :post
-           :parameters `(("data" . ,path-or-string))
-           :form-data t)))
-    (process-result result)))
+          (multiple-value-list
+           (drakma:http-request
+            (make-call-url
+             "files/write"
+             `(("arg" ,dest-path) ("create", create) ("parents" ,parents)
+                                  ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
+                                  ,@(when offset (list "offset" offset))
+                                  ,@(when count (list "count" count))
+                                  ,@(when cid-version `("cid-version" ,cid-version))
+                                  ,@(when hash (list "hash" hash))))
+            :method :post
+            :parameters `(("data" . ,path-or-string))
+            :form-data t))))
+    (apply #'process-result result)))
 
 
 
