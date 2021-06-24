@@ -46,7 +46,8 @@
   (let* ((result (cond ((stringp body) body)
                        ((vectorp body) (flexi-streams:octets-to-string body))))
          (result (if (search "application/json" (cdr (assoc :content-type headers)))
-                     (simplify (yason:parse result :object-as :alist))
+                     (unless (empty-string-p result)
+                       (simplify (yason:parse result :object-as :alist)))
                      result)))
     (if (eql 200 status-code)
         result
@@ -525,7 +526,17 @@ a local file.
             :form-data t))))
     (apply #'process-result result)))
 
-
+(defmacro with-files-write ((stream dest-path &rest params) &body body)
+  "A convenience macro for files-write. In the body of the macro, any writes
+to the stream named by STREAM will be sent to the mfs file at DEST-PATH. PARAMS
+will be passed directly to the files-write function."
+  (let ((fn (gensym "FN")))
+    ;;FIXME: Would be nice to write the stream directly to files-write.
+    ;; This feels a little less efficient.
+    `(uiop:with-temporary-file (:stream ,stream :pathname ,fn)
+       ,@body
+       :close-stream
+       (files-write ,fn ,dest-path ,@params))))
 
 ;; —————————————————————————————————————
 ;; FILESTORE CALLS
@@ -783,7 +794,8 @@ a local file.
 (defun pin-ls (&key (path nil) (type "all"))
   "List objects pinned to local storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-ls"
-  (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type))))
+  (let ((res (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type)))))
+    (if (equal res '("Keys")) nil res)))
 
 ;; STRING [:BOOLEAN] → ALIAS || (NIL STRING)
 (defun pin-rm (path &key (recursive 'T))
@@ -1059,7 +1071,7 @@ a local file.
               (stringp (cdr list)))
          (cdr list))
         ((and (eq 1 (length list))
-              (consp list))
+              (consp (car list)))
          (simplify (car list)))
         ((and (consp list)
               (stringp (car list))
