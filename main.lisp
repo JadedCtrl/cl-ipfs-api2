@@ -30,27 +30,33 @@
    If the JSON is 'error JSON', I.E., it signals that an error has been
    recieved, two values are returned: NIL and the string-error-message."
   (let ((result
-          (drakma:http-request
-            (make-call-url *api-host* *api-root* call arguments)
+          (multiple-value-list
+           (drakma:http-request
+            (make-call-url call arguments)
             :method method
             :url-encoder #'ipfs::url-encode
             :parameters parameters
-            :want-stream want-stream)))
+            :want-stream want-stream))))
+    (if want-stream
+        (car result)
+        (apply #'process-result result))))
 
-    (cond (want-stream result)
-          ((stringp result) (values nil result))
-          ((vectorp result)
-           (let* ((string (flexi-streams:octets-to-string result))
-                  (alist
-                    (with-input-from-string (stream string)
-                      (loop while (peek-char t stream nil)
-                            collect (yason:parse stream :object-as :alist)))))
-             (if (ignore-errors (equal (cdr (s-assoc "Type" (simplify alist))) "error"))
-               (values NIL (cdr (s-assoc "Message" (simplify alist))))
-               (simplify alist)))))))
+(defun process-result (body status-code headers uri http-stream must-close status-text)
+  (declare (ignore uri http-stream must-close status-text))
+  (let* ((result (cond ((stringp body) body)
+                       ((vectorp body) (flexi-streams:octets-to-string body))))
+         (result (if (search "application/json" (cdr (assoc :content-type headers)))
+                     (unless (empty-string-p result)
+                       (simplify (yason:parse result :object-as :alist)))
+                     result)))
+    (if (eql 200 status-code)
+        result
+        (values nil (if (stringp result)
+                        result
+                        (ignore-errors (cdr (s-assoc "Message" result))))))))
 
-;; STRING STRING LIST → STRING
-(defun make-call-url (host root call arguments)
+;; STRING LIST &key STRING STRING → STRING
+(defun make-call-url (call arguments &key (host *api-host*) (root *api-root*))
   "Create the URL of an API call, as per the given arguments.
   Symbols are assumed to be something like 'T (so boolean), nil likewise.
   Arguments should look like this:
@@ -497,22 +503,40 @@
 ;; PATHNAME STRING [:NUMBER :BOOLEAN :BOOLEAN :BOOLEAN :NUMBER :BOOLEAN
 ;;                  :NUMBER :STRING]
 ;;                 → NIL || (NIL STRING)
-(defun files-write (pathname dest-path
+(defun files-write (path-or-string dest-path
 			     &key (offset nil) (create nil) (parents nil)
 			     (truncate nil) (count nil) (raw-leaves nil)
 			     (cid-version nil) (hash nil))
-  "Write to a given file.
+  "Write to a given file. First parameter can be a string or a path to
+a local file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (ipfs-call "files/write"
-  `(("arg" ,dest-path) ("create" ,create) ("parents" ,parents)
-    ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
-    ,(if offset (list "offset" offset))
-    ,(if count (list "count" count))
-    ,(if cid-version `("cid-version" ,cid-version))
-    ,(if hash (list "hash" hash)))
-  :parameters `(("file" . ,pathname))))
+  (let ((result
+          (multiple-value-list
+           (drakma:http-request
+            (make-call-url
+             "files/write"
+             `(("arg" ,dest-path) ("create", create) ("parents" ,parents)
+                                  ("truncate" ,truncate) ("raw-leaves" ,raw-leaves)
+                                  ,@(when offset (list "offset" offset))
+                                  ,@(when count (list "count" count))
+                                  ,@(when cid-version `("cid-version" ,cid-version))
+                                  ,@(when hash (list "hash" hash))))
+            :method :post
+            :parameters `(("data" . ,path-or-string))
+            :form-data t))))
+    (apply #'process-result result)))
 
-
+(defmacro with-files-write ((stream dest-path &rest params) &body body)
+  "A convenience macro for files-write. In the body of the macro, any writes
+to the stream named by STREAM will be sent to the mfs file at DEST-PATH. PARAMS
+will be passed directly to the files-write function."
+  (let ((fn (gensym "FN")))
+    ;;FIXME: Would be nice to write the stream directly to files-write.
+    ;; This feels a little less efficient.
+    `(uiop:with-temporary-file (:stream ,stream :pathname ,fn)
+       ,@body
+       :close-stream
+       (files-write ,fn ,dest-path ,@params))))
 
 ;; —————————————————————————————————————
 ;; FILESTORE CALLS
@@ -770,7 +794,8 @@
 (defun pin-ls (&key (path nil) (type "all"))
   "List objects pinned to local storage.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-pin-ls"
-  (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type))))
+  (let ((res (ipfs-call "pin/ls" `(,(when path `("arg" ,path)) ("type" ,type)))))
+    (if (equal res '("Keys")) nil res)))
 
 ;; STRING [:BOOLEAN] → ALIAS || (NIL STRING)
 (defun pin-rm (path &key (recursive 'T))
@@ -1046,7 +1071,7 @@
               (stringp (cdr list)))
          (cdr list))
         ((and (eq 1 (length list))
-              (consp list))
+              (consp (car list)))
          (simplify (car list)))
         ((and (consp list)
               (stringp (car list))

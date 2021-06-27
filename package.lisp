@@ -168,4 +168,5 @@
 
     ;; version calls
     :version
-    :version-deps))
+   :version-deps
+   #:with-files-write))
