@@ -1101,6 +1101,6 @@ will be passed directly to the files-write function."
   ignored
   (cl-ppcre:regex-replace-all
     "%2520" (drakma:url-encode
-	      (cl-ppcre:regex-replace-all " " string "%20")
-	      :utf-8)
+             (cl-ppcre:regex-replace-all " " string "%20")
+             drakma:*drakma-default-external-format*)
     "%20"))
