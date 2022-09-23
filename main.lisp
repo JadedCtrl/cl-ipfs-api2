@@ -48,8 +48,10 @@
   (let* ((result (cond ((stringp body) body)
                        ((vectorp body) (flexi-streams:octets-to-string body))))
          (result (if (search "application/json" (cdr (assoc :content-type headers)))
-                     (unless (empty-string-p result)
-                       (simplify (yason:parse result :object-as :alist)))
+                     (mapcar (lambda (line)
+                               (simplify (yason:parse line :object-as :alist)))
+                             (delete "" (uiop:split-string result :separator (string #\newline))
+                                     :test 'string=))
                      result)))
     (if (eql 200 status-code)
         result
