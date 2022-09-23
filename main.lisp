@@ -87,12 +87,39 @@
 ;; —————————————————————————————————————
 ;; ROOT CALLS
 
+(defun parent-directory (path)
+  (if (uiop:directory-pathname-p path)
+      (uiop:pathname-parent-directory-pathname path)
+      (uiop:pathname-directory-pathname path)))
+
+(defun directory->parameters (dir)
+  (let* ((result '())
+         (root (uiop:ensure-pathname dir :truenamize t))
+         (parent (parent-directory root)))
+    (uiop:collect-sub*directories
+     root
+     #'uiop:directory-exists-p
+     (constantly t)
+     (lambda (subdirectory)
+       (setf result
+             (cons `("file" ,subdirectory
+                            :content-type "application/x-directory"
+                            :filename ,(uiop:native-namestring (uiop:enough-pathname subdirectory parent)))
+                   (append result
+                           (mapcar (lambda (file)
+                                     `("file" ,file
+                                              :filename ,(uiop:native-namestring (uiop:enough-pathname file parent))))
+                                   (uiop:directory-files subdirectory)))))))
+    result))
+
 ;; PATHNAME → (HASH-STRING SIZE-NUMBER) || (NIL STRING)
 (defun add (pathname &key (pin 't) (only-hash nil) (cid-version 0))
   "Add a file to IPFS, return it's hash.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
   (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash) ("cid-version" ,cid-version))
-             :parameters `(("file" . ,pathname))))
+             :parameters (if (uiop:directory-exists-p pathname)
+                             (directory->parameters pathname)
+                             `(("file" . ,pathname)))))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
 (defun cat (ipfs-path &key (offset nil) (length nil))
