@@ -32,7 +32,9 @@
   (let ((result
           (multiple-value-list
            (drakma:http-request
-            (make-call-url call arguments)
+            ;; We ensure the string is of 'character elements and not 'base-char
+            ;; which would break Puri.
+            (alexandria:copy-array (make-call-url call arguments) :element-type 'character)
             :method method
             :url-encoder #'ipfs::url-encode
             :parameters parameters
