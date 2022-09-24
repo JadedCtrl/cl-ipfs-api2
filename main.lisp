@@ -493,7 +493,7 @@
 (defun files-ls (&optional (path "/"))
   "List directories in local mutable namespace.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-ls"
-  (ipfs-call "files/ls" `(("arg" ,path))))
+  (ipfs-call "files/ls" `(("arg" ,path) ("long" "true"))))
 
 ;; STRING [:BOOLEAN :NUMBER :STRING] → NIL || (NIL STRING)
 (defun files-mkdir (path &key (parents nil) (cid-version nil) (hash nil))
