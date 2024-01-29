@@ -32,7 +32,9 @@
   (let ((result
           (multiple-value-list
            (drakma:http-request
-            (make-call-url call arguments)
+            ;; We ensure the string is of 'character elements and not 'base-char
+            ;; which would break Puri.
+            (alexandria:copy-array (make-call-url call arguments) :element-type 'character)
             :method method
             :url-encoder #'ipfs::url-encode
             :parameters parameters
@@ -46,8 +48,10 @@
   (let* ((result (cond ((stringp body) body)
                        ((vectorp body) (flexi-streams:octets-to-string body))))
          (result (if (search "application/json" (cdr (assoc :content-type headers)))
-                     (unless (empty-string-p result)
-                       (simplify (yason:parse result :object-as :alist)))
+                     (mapcar (lambda (line)
+                               (simplify (yason:parse line :object-as :alist)))
+                             (delete "" (uiop:split-string result :separator (string #\newline))
+                                     :test 'string=))
                      result)))
     (if (eql 200 status-code)
         result
@@ -83,12 +87,39 @@
 ;; —————————————————————————————————————
 ;; ROOT CALLS
 
+(defun parent-directory (path)
+  (if (uiop:directory-pathname-p path)
+      (uiop:pathname-parent-directory-pathname path)
+      (uiop:pathname-directory-pathname path)))
+
+(defun directory->parameters (dir)
+  (let* ((result '())
+         (root (uiop:ensure-pathname dir :truenamize t))
+         (parent (parent-directory root)))
+    (uiop:collect-sub*directories
+     root
+     #'uiop:directory-exists-p
+     (constantly t)
+     (lambda (subdirectory)
+       (setf result
+             (cons `("file" ,subdirectory
+                            :content-type "application/x-directory"
+                            :filename ,(uiop:native-namestring (uiop:enough-pathname subdirectory parent)))
+                   (append result
+                           (mapcar (lambda (file)
+                                     `("file" ,file
+                                              :filename ,(uiop:native-namestring (uiop:enough-pathname file parent))))
+                                   (uiop:directory-files subdirectory)))))))
+    result))
+
 ;; PATHNAME → (HASH-STRING SIZE-NUMBER) || (NIL STRING)
 (defun add (pathname &key (pin 't) (only-hash nil) (cid-version 0))
   "Add a file to IPFS, return it's hash.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-add"
   (ipfs-call "add" `(("pin" ,pin) ("only-hash" ,only-hash) ("cid-version" ,cid-version))
-             :parameters `(("file" . ,pathname))))
+             :parameters (if (uiop:directory-exists-p pathname)
+                             (directory->parameters pathname)
+                             `(("file" . ,pathname)))))
 
 ;; STRING :NUMBER :NUMBER → STRING || (NIL STRING)
 (defun cat (ipfs-path &key (offset nil) (length nil))
@@ -462,7 +493,7 @@
 (defun files-ls (&optional (path "/"))
   "List directories in local mutable namespace.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-ls"
-  (ipfs-call "files/ls" `(("arg" ,path))))
+  (ipfs-call "files/ls" `(("arg" ,path) ("long" "true"))))
 
 ;; STRING [:BOOLEAN :NUMBER :STRING] → NIL || (NIL STRING)
 (defun files-mkdir (path &key (parents nil) (cid-version nil) (hash nil))
@@ -491,8 +522,8 @@
 (defun files-rm (path &key (recursive nil) (force nil))
   "Remove a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (ipfs-call "files/read" `(("arg" ,source) ("recursive" ,recursive)
-                                            ("force" ,force))))
+  (ipfs-call "files/rm" `(("arg" ,path) ("recursive" ,recursive)
+                          ("force" ,force))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun files-stat (path)
@@ -1101,6 +1132,6 @@ will be passed directly to the files-write function."
   ignored
   (cl-ppcre:regex-replace-all
     "%2520" (drakma:url-encode
-	      (cl-ppcre:regex-replace-all " " string "%20")
-	      :utf-8)
+             (cl-ppcre:regex-replace-all " " string "%20")
+             drakma:*drakma-default-external-format*)
     "%20"))
