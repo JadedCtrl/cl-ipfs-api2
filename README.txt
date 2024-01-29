@@ -118,6 +118,5 @@ BORING STUFF
 ————————————————————————————————————————
 License is the GNU LGPLv3:
        check COPYING.txt (/ipfs/QmR8Rnk5QdXgrXRqmgMLmG5PuHZEjujfa3rfVhPV99TLY7)
-Author is Jaidyn Ann <jadedctrl@teknik.io>
-Sauce is at https://git.feneas.org/detruota/cl-ipfs-api2
-            https://github.com/JadedCtrl/cl-ipfs-api2
+Author is Jaidyn Ann <jadedctrl@posteo.at>
+Sauce is at https://hak.xwx.moe/jadedctrl/cl-ipfs-api2
