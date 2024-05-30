@@ -5,7 +5,7 @@ CL-IPFS-API²
 :cl-ipfs-api² is a pretty simple set of IPFS bindings for Common Lisp, using
 the HTTP API for (almost) everything, except for pubsub (which uses the locally
 installed go-ipfs program).
-It uses Dexador, YASON, and UIOP.
+It uses Drakma, YASON, and UIOP.
 
 
 ————————————————————————————————————————
