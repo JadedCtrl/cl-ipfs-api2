@@ -491,13 +491,13 @@
 (defun files-rm (path &key (recursive nil) (force nil))
   "Remove a given file.
   /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
-  (ipfs-call "files/read" `(("arg" ,source) ("recursive" ,recursive)
+  (ipfs-call "files/rm" `(("arg" ,path) ("recursive" ,recursive)
                                             ("force" ,force))))
 
 ;; STRING → ALIST || (NIL STRING)
 (defun files-stat (path)
-  "Remove a given file.
-  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-rm"
+  "Get file status.
+  /ipns/docs.ipfs.io/reference/api/http/#api-v0-files-stat"
   (ipfs-call "files/stat" `(("arg" ,path))))
 
 ;; PATHNAME STRING [:NUMBER :BOOLEAN :BOOLEAN :BOOLEAN :NUMBER :BOOLEAN
